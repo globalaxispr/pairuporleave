@@ -108,15 +108,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function signIn(email: string, password: string): Promise<{ error: string | null }> {
     try {
+      console.log("[Auth Diagnostics] Login request start", {
+        hasEmail: !!email,
+        emailDomain: email.includes("@") ? email.split("@")[1] : "unknown",
+        hasPassword: !!password,
+      });
+
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+      if (error) {
+        console.warn("[Auth Diagnostics] Supabase signInWithPassword returned error:", {
+          message: error.message,
+          status: error.status,
+          name: error.name,
+        });
+      }
       
       if (!error && data?.user) {
+        console.log("[Auth Diagnostics] Authentication successful, checking public.admin_users authorization record...");
         // Step 1 & 2: Get authenticated user and check admin_users table
         const { data: adminRecord, error: adminErr } = await supabase
           .from("admin_users")
           .select("id, role")
           .eq("id", data.user.id)
           .maybeSingle();
+
+        if (adminErr) {
+          console.warn("[Auth Diagnostics] admin_users query returned error:", {
+            message: adminErr.message,
+            code: adminErr.code,
+          });
+        }
 
         // Step 3 & 4: Verify authorization/role
         if (adminErr || !adminRecord) {
@@ -155,7 +177,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (error) return { error: error.message };
-    } catch {
+    } catch (err: any) {
+      console.error("[Auth Diagnostics] Unexpected error in signIn:", {
+        message: err?.message,
+        name: err?.name,
+      });
       if (isDemoAuthEnabled && email.toLowerCase().includes("admin") && password.length >= 6) {
         const demoUser: any = {
           id: "admin-demo-id",

@@ -74,14 +74,11 @@ CREATE POLICY "Admin can view all votes"
 -- ====================================================
 ALTER TABLE admin_users ENABLE ROW LEVEL SECURITY;
 
--- Admin users can read their own record
+-- Admin users can read their own record (non-recursive)
 CREATE POLICY "Admins can read admin_users"
   ON admin_users FOR SELECT
   USING (
-    EXISTS (
-      SELECT 1 FROM admin_users au
-      WHERE au.id = auth.uid()
-    )
+    id = auth.uid()
   );
 
 

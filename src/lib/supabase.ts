@@ -1,7 +1,22 @@
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+/**
+ * Normalizes and sanitizes the Supabase URL.
+ * Automatically strips trailing slashes and accidental API subpaths
+ * like /rest/v1, /auth/v1, or /graphql/v1 which cause PostgREST PGRST125 "Invalid path" routing errors.
+ */
+function sanitizeSupabaseUrl(rawUrl?: string): string {
+  if (!rawUrl) return "";
+  let url = rawUrl.trim();
+  url = url.replace(/\/+$/, "");
+  url = url.replace(/\/(rest|auth|graphql)\/v1\/?$/i, "");
+  url = url.replace(/\/+$/, "");
+  return url;
+}
+
+const rawSupabaseUrl = (import.meta.env.VITE_SUPABASE_URL as string) || "";
+const supabaseAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY as string) || "";
+export const supabaseUrl = sanitizeSupabaseUrl(rawSupabaseUrl);
 
 /**
  * True only when both env vars are present AND are not any of the known
@@ -25,6 +40,25 @@ function isRealSupabaseConfig(url: string, key: string): boolean {
 }
 
 export const IS_SUPABASE_READY = isRealSupabaseConfig(supabaseUrl, supabaseAnonKey);
+
+// Safe diagnostic logging (no sensitive secrets, keys, or passwords)
+try {
+  let hostname = "none";
+  if (supabaseUrl && supabaseUrl.startsWith("http")) {
+    hostname = new URL(supabaseUrl).hostname;
+  }
+  console.log("[Supabase Config]", {
+    hasSupabaseUrl: !!rawSupabaseUrl,
+    hostname,
+    urlNormalized: rawSupabaseUrl !== supabaseUrl ? "auto-corrected (subpath removed)" : "clean",
+    hasAnonKey: !!supabaseAnonKey,
+    anonKeyLength: supabaseAnonKey ? supabaseAnonKey.length : 0,
+    isSupabaseReady: IS_SUPABASE_READY,
+    isDev: import.meta.env.DEV,
+  });
+} catch {
+  // Silent fallback
+}
 
 if (!IS_SUPABASE_READY) {
   console.warn(
