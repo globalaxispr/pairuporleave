@@ -1,0 +1,27 @@
+# Pair Up or Leave — robots.txt
+# https://www.robotstxt.org/robotstxt.html
+
+User-agent: *
+
+# Allow all public pages
+Allow: /
+Allow: /candidates
+Allow: /candidates/
+Allow: /candidate/
+Allow: /ranking
+Allow: /results
+Allow: /about
+Allow: /how-it-works
+Allow: /contact
+Allow: /privacy
+Allow: /terms
+
+# Block admin routes
+Disallow: /admin
+Disallow: /admin/
+
+# Block Stripe callback routes (not useful for indexing)
+Disallow: /vote/success
+Disallow: /vote/cancel
+
+Sitemap: https://pairuporleave.com/sitemap.xml

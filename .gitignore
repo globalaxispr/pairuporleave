@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment variables — NEVER commit these
+.env
+.env.local
+.env.*.local
+
+# Local development test seeds containing test credentials
+supabase/migrations/*_dev_only.sql
+supabase/seed*.sql
+
+# Editor dirs
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Archives
+*.rar
+*.zip
+*.tar.gz
+*.7z
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Supabase CLI temporary files
+.temp/
+supabase/.temp/
