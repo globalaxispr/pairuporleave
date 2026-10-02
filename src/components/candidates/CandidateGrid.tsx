@@ -1,8 +1,8 @@
-import type { Candidate } from "@/lib/supabase";
+import type { PublicCandidate } from "@/lib/supabase";
 import { CandidateCard } from "./CandidateCard";
 
 interface CandidateGridProps {
-  candidates: Candidate[];
+  candidates: PublicCandidate[];
   showRank?: boolean;
 }
 

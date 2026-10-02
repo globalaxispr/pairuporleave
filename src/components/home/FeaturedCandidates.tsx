@@ -1,12 +1,12 @@
 import { useEffect, useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, Vote } from "lucide-react";
-import { supabase, fetchCandidatesSafe, type Candidate } from "@/lib/supabase";
+import { supabase, fetchCandidatesSafe, type PublicCandidate, pickPublicFields } from "@/lib/supabase";
 import { CandidateGrid } from "@/components/candidates/CandidateGrid";
 import { LoadingState } from "@/components/ui/LoadingState";
 
 export function FeaturedCandidates() {
-  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [candidates, setCandidates] = useState<PublicCandidate[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -29,10 +29,12 @@ export function FeaturedCandidates() {
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "candidates" },
         (payload) => {
+          if (!payload.new) return;
+          const updated = pickPublicFields(payload.new as Record<string, unknown>);
           setCandidates((prev) =>
             prev.map((c) =>
-              c.id === (payload.new as Candidate).id
-                ? { ...c, ...(payload.new as Candidate) }
+              c.id === updated.id
+                ? { ...c, ...updated }
                 : c
             )
           );

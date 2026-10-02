@@ -1,12 +1,12 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Vote, TrendingUp, User, Eye } from "lucide-react";
-import { getVotePriceDollars, type Candidate } from "@/lib/supabase";
+import { getVotePriceDollars, type PublicCandidate, getCandidateScore } from "@/lib/supabase";
 import { formatNumber } from "@/lib/utils";
 import { VoteModal } from "@/components/voting/VoteModal";
 
 interface CandidateCardProps {
-  candidate: Candidate;
+  candidate: PublicCandidate;
   rank?: number;
 }
 
@@ -434,7 +434,7 @@ export function CandidateCard({ candidate, rank }: CandidateCardProps) {
                 color: "#7A0C2E",
               }}
             >
-              {formatNumber(candidate.total_votes)}
+              {formatNumber(getCandidateScore(candidate))}
             </span>
           </div>
 

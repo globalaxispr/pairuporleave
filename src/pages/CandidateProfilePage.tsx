@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { Vote, ArrowLeft, TrendingUp, User, MessageSquare, Eye } from "lucide-react";
-import { supabase, type Candidate, fetchCandidateByIdSafe } from "@/lib/supabase";
+import { supabase, type PublicCandidate, fetchCandidateByIdSafe, getCandidateScore, pickPublicFields } from "@/lib/supabase";
 import { formatNumber, SITE_URL } from "@/lib/utils";
 import { VoteModal } from "@/components/voting/VoteModal";
 import { LoadingState } from "@/components/ui/LoadingState";
@@ -11,7 +11,7 @@ import { ErrorState } from "@/components/ui/ErrorState";
 export function CandidateProfilePage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [candidate, setCandidate] = useState<Candidate | null>(null);
+  const [candidate, setCandidate] = useState<PublicCandidate | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [imgError, setImgError] = useState(false);
@@ -42,7 +42,8 @@ export function CandidateProfilePage() {
         event: "UPDATE", schema: "public", table: "candidates",
         filter: `id=eq.${id}`,
       }, (payload) => {
-        setCandidate((prev) => prev ? { ...prev, ...(payload.new as Candidate) } : prev);
+        const updated = pickPublicFields(payload.new as Record<string, unknown>);
+        setCandidate((prev) => prev ? { ...prev, ...updated } : prev);
       })
       .subscribe();
     return () => { void supabase.removeChannel(channel); };
@@ -216,7 +217,7 @@ export function CandidateProfilePage() {
                   Current Votes
                 </div>
                 <div style={{ fontSize: "2.25rem", fontWeight: 900, color: "#E51B3E" }}>
-                  {formatNumber(candidate.total_votes)}
+                  {formatNumber(getCandidateScore(candidate))}
                 </div>
                 <div style={{ fontSize: "0.8125rem", color: "#7A0C2E", fontWeight: 700, marginTop: "0.25rem" }}>
                   ${isCouple ? "2.00" : "1.00"} per vote · {isCouple ? "Couple Entry" : "Individual Entry"}
@@ -335,7 +336,7 @@ export function CandidateProfilePage() {
               >
                 <TrendingUp size={16} color="#E51B3E" />
                 <span style={{ fontSize: "0.9375rem", color: "#24131A" }}>
-                  <strong style={{ color: "#E51B3E" }}>{formatNumber(candidate.total_votes)}</strong>{" "}
+                  <strong style={{ color: "#E51B3E" }}>{formatNumber(getCandidateScore(candidate))}</strong>{" "}
                   votes received — keep voting to move them up!
                 </span>
               </div>

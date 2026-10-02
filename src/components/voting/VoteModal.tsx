@@ -1,10 +1,10 @@
 import { useState, useCallback, useEffect } from "react";
 import { X, Minus, Plus, Vote, Loader2, AlertCircle, Lock, Users, User } from "lucide-react";
-import { getVotePriceDollars, type Candidate } from "@/lib/supabase";
+import { getVotePriceDollars, type PublicCandidate, getCandidateScore } from "@/lib/supabase";
 import { formatNumber } from "@/lib/utils";
 
 interface VoteModalProps {
-  candidate: Candidate;
+  candidate: PublicCandidate;
   onClose: () => void;
 }
 
@@ -199,7 +199,7 @@ export function VoteModal({ candidate, onClose }: VoteModalProps) {
             Current Standing:
           </span>
           <span style={{ fontSize: "0.9375rem", fontWeight: 800, color: "#7A0C2E" }}>
-            {formatNumber(candidate.total_votes)} votes
+            {formatNumber(getCandidateScore(candidate))} votes
           </span>
         </div>
 

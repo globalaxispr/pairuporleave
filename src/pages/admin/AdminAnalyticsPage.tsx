@@ -4,7 +4,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   LineChart, Line, PieChart, Pie, Cell, Legend,
 } from "recharts";
-import { supabase, type Candidate, fetchCandidatesSafe, IS_SUPABASE_READY } from "@/lib/supabase";
+import { supabase, type Candidate, fetchAdminCandidates, IS_SUPABASE_READY } from "@/lib/supabase";
 import { formatNumber, formatCurrency } from "@/lib/utils";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { Users, User, DollarSign, Vote as VoteIcon } from "lucide-react";
@@ -56,7 +56,7 @@ export function AdminAnalyticsPage() {
 
       let cands = c;
       if (!cands || cands.length === 0) {
-        cands = await fetchCandidatesSafe();
+        cands = await fetchAdminCandidates();
       }
 
       setCandidates(cands ?? []);

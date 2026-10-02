@@ -1,12 +1,12 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Trophy, Vote, ArrowRight, ShieldCheck, Heart } from "lucide-react";
-import { fetchCandidatesSafe, type Candidate } from "@/lib/supabase";
+import { fetchCandidatesSafe, getCandidateScore, type PublicCandidate } from "@/lib/supabase";
 import { formatNumber } from "@/lib/utils";
 
 export function HeroSection() {
   const navigate = useNavigate();
-  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [candidates, setCandidates] = useState<PublicCandidate[]>([]);
 
   useEffect(() => {
     async function load() {
@@ -360,7 +360,7 @@ export function HeroSection() {
                 }}
               >
                 <ShieldCheck size={18} color="#7A0C2E" />
-                <span>Verified Stripe checkout · Instant real-time vote counting</span>
+                <span>Verified Stripe checkout Â· Instant real-time vote counting</span>
               </div>
             </div>
 
@@ -490,7 +490,7 @@ export function HeroSection() {
                         </div>
                         <div style={{ textAlign: "right" }}>
                           <div style={{ fontWeight: 900, fontSize: "1rem", color: "#7A0C2E" }}>
-                            {formatNumber(c.total_votes)}
+                            {formatNumber(getCandidateScore(c))}
                           </div>
                           <div style={{ fontSize: "0.6875rem", color: "#6B6870" }}>votes</div>
                         </div>

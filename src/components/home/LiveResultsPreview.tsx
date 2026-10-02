@@ -1,11 +1,11 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { TrendingUp, ArrowRight } from "lucide-react";
-import { supabase, fetchCandidatesSafe, type Candidate } from "@/lib/supabase";
+import { supabase, fetchCandidatesSafe, getCandidateScore, pickPublicFields, type PublicCandidate } from "@/lib/supabase";
 import { formatNumber } from "@/lib/utils";
 
 export function LiveResultsPreview() {
-  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [candidates, setCandidates] = useState<PublicCandidate[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -20,7 +20,7 @@ export function LiveResultsPreview() {
     void load();
   }, []);
 
-  const totalVotes = candidates.reduce((s, c) => s + c.total_votes, 0);
+  const totalVotes = candidates.reduce((s, c) => s + getCandidateScore(c), 0);
 
   return (
     <section
@@ -38,7 +38,7 @@ export function LiveResultsPreview() {
           }}
           className="results-preview-grid"
         >
-          {/* Left — text */}
+          {/* Left â€” text */}
           <div>
             <div
               style={{
@@ -82,7 +82,7 @@ export function LiveResultsPreview() {
             </Link>
           </div>
 
-          {/* Right — results list */}
+          {/* Right â€” results list */}
           <div>
             {loading ? (
               <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
@@ -101,7 +101,7 @@ export function LiveResultsPreview() {
                 className="card-shadow"
               >
                 {candidates.slice(0, 5).map((c, i) => {
-                  const pct = totalVotes > 0 ? Math.round((c.total_votes / totalVotes) * 100) : 0;
+                  const pct = totalVotes > 0 ? Math.round((getCandidateScore(c) / totalVotes) * 100) : 0;
                   const initials = c.name.split(" ").slice(0, 2).map((n) => n[0]).join("").toUpperCase();
 
                   return (
@@ -189,7 +189,7 @@ export function LiveResultsPreview() {
                       {/* Votes + pct */}
                       <div style={{ textAlign: "right", flexShrink: 0 }}>
                         <div style={{ fontWeight: 700, fontSize: "0.9375rem", color: "#E51B3E" }}>
-                          {formatNumber(c.total_votes)}
+                          {formatNumber(getCandidateScore(c))}
                         </div>
                         <div style={{ fontSize: "0.75rem", color: "#6B6870" }}>{pct}%</div>
                       </div>

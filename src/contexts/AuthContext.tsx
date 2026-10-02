@@ -108,34 +108,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function signIn(email: string, password: string): Promise<{ error: string | null }> {
     try {
-      console.log("[Auth Diagnostics] Login request start", {
-        hasEmail: !!email,
-        emailDomain: email.includes("@") ? email.split("@")[1] : "unknown",
-        hasPassword: !!password,
-      });
+      // Only log diagnostics in development
+      if (import.meta.env.DEV) {
+        console.log("[Auth Diagnostics] Login request start", {
+          hasEmail: !!email,
+          hasPassword: !!password,
+        });
+      }
 
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
-      if (error) {
-        console.warn("[Auth Diagnostics] Supabase signInWithPassword returned error:", {
+      if (error && import.meta.env.DEV) {
+        console.warn("[Auth Diagnostics] signInWithPassword error:", {
           message: error.message,
           status: error.status,
-          name: error.name,
         });
       }
       
       if (!error && data?.user) {
-        console.log("[Auth Diagnostics] Authentication successful, checking public.admin_users authorization record...");
-        // Step 1 & 2: Get authenticated user and check admin_users table
+        // Check admin_users table for authorization
         const { data: adminRecord, error: adminErr } = await supabase
           .from("admin_users")
           .select("id, role")
           .eq("id", data.user.id)
           .maybeSingle();
 
-        if (adminErr) {
-          console.warn("[Auth Diagnostics] admin_users query returned error:", {
-            message: adminErr.message,
+        if (adminErr && import.meta.env.DEV) {
+          console.warn("[Auth Diagnostics] admin_users query error:", {
             code: adminErr.code,
           });
         }

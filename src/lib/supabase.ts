@@ -41,23 +41,22 @@ function isRealSupabaseConfig(url: string, key: string): boolean {
 
 export const IS_SUPABASE_READY = isRealSupabaseConfig(supabaseUrl, supabaseAnonKey);
 
-// Safe diagnostic logging (no sensitive secrets, keys, or passwords)
-try {
-  let hostname = "none";
-  if (supabaseUrl && supabaseUrl.startsWith("http")) {
-    hostname = new URL(supabaseUrl).hostname;
+// Safe diagnostic logging — development only
+if (import.meta.env.DEV) {
+  try {
+    let hostname = "none";
+    if (supabaseUrl && supabaseUrl.startsWith("http")) {
+      hostname = new URL(supabaseUrl).hostname;
+    }
+    console.log("[Supabase Config]", {
+      hostname,
+      urlNormalized: rawSupabaseUrl !== supabaseUrl ? "auto-corrected" : "clean",
+      hasAnonKey: !!supabaseAnonKey,
+      isSupabaseReady: IS_SUPABASE_READY,
+    });
+  } catch {
+    // Silent fallback
   }
-  console.log("[Supabase Config]", {
-    hasSupabaseUrl: !!rawSupabaseUrl,
-    hostname,
-    urlNormalized: rawSupabaseUrl !== supabaseUrl ? "auto-corrected (subpath removed)" : "clean",
-    hasAnonKey: !!supabaseAnonKey,
-    anonKeyLength: supabaseAnonKey ? supabaseAnonKey.length : 0,
-    isSupabaseReady: IS_SUPABASE_READY,
-    isDev: import.meta.env.DEV,
-  });
-} catch {
-  // Silent fallback
 }
 
 if (!IS_SUPABASE_READY) {
@@ -83,10 +82,78 @@ export function getVotePriceCents(type?: CandidateType | string | null): number 
   return type === "couple" ? 200 : 100;
 }
 
-export function getCandidateScore(c?: Partial<Candidate> | null): number {
+/**
+ * PublicCandidate is the ONLY candidate shape ever sent to public pages/components.
+ * It MUST NOT include: paid_votes, bonus_votes, penalty_points, total_votes,
+ * or any other internal/admin field.
+ * This type is enforced at compile-time so accidental additions are caught.
+ */
+export type PublicCandidate = {
+  id: string;
+  name: string;
+  slug: string;
+  category: string;
+  position: string;
+  description: string | null;
+  biography: string | null;
+  vision: string | null;
+  photo_url: string | null;
+  status: "active" | "paused";
+  /** The single public score — computed by the DB, contains paid + bonus - penalty. */
+  current_score: number;
+  candidate_type: CandidateType;
+  person_one_name: string | null;
+  person_two_name: string | null;
+  person_one_photo_url: string | null;
+  person_two_photo_url: string | null;
+  display_name: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/**
+ * The set of columns fetched for public pages.
+ * Must match PublicCandidate exactly — no internal fields.
+ */
+const PUBLIC_CANDIDATE_COLUMNS =
+  "id,name,slug,category,position,description,biography,vision," +
+  "photo_url,status,current_score,candidate_type," +
+  "person_one_name,person_two_name,person_one_photo_url,person_two_photo_url," +
+  "display_name,created_at,updated_at";
+
+/**
+ * Strips any internal/admin columns from a raw DB row before it is placed
+ * into public React state or returned from a public function.
+ * This is the last-resort guard against accidental field leakage
+ * (e.g. from realtime payloads that may still carry extra columns).
+ */
+export function pickPublicFields(raw: Record<string, unknown>): PublicCandidate {
+  return {
+    id: raw.id as string,
+    name: raw.name as string,
+    slug: raw.slug as string,
+    category: raw.category as string,
+    position: raw.position as string,
+    description: (raw.description as string | null) ?? null,
+    biography: (raw.biography as string | null) ?? null,
+    vision: (raw.vision as string | null) ?? null,
+    photo_url: (raw.photo_url as string | null) ?? null,
+    status: (raw.status as "active" | "paused") ?? "active",
+    current_score: typeof raw.current_score === "number" ? raw.current_score : 0,
+    candidate_type: (raw.candidate_type === "couple" ? "couple" : "individual") as CandidateType,
+    person_one_name: (raw.person_one_name as string | null) ?? null,
+    person_two_name: (raw.person_two_name as string | null) ?? null,
+    person_one_photo_url: (raw.person_one_photo_url as string | null) ?? null,
+    person_two_photo_url: (raw.person_two_photo_url as string | null) ?? null,
+    display_name: (raw.display_name as string | null) ?? null,
+    created_at: raw.created_at as string,
+    updated_at: raw.updated_at as string,
+  };
+}
+
+export function getCandidateScore(c?: Partial<PublicCandidate> | null): number {
   if (!c) return 0;
   if (typeof c.current_score === "number") return c.current_score;
-  if (typeof c.total_votes === "number") return c.total_votes;
   return 0;
 }
 
@@ -180,6 +247,11 @@ export type Database = {
         };
       };
     };
+    Views: {
+      public_candidates: {
+        Row: PublicCandidate;
+      };
+    };
   };
 };
 
@@ -190,11 +262,14 @@ export type ScoreLedgerEntry = Database["public"]["Tables"]["score_ledger"]["Row
   candidate?: Pick<Candidate, "id" | "name" | "display_name" | "candidate_type" | "photo_url"> | null;
 };
 
-// ====================================================
-// 5 Fictional Demo Candidates (Individual & Couple Showcase)
-// With consistent: paid_votes + bonus_votes - penalty_points = current_score
-// ====================================================
-export const DEMO_CANDIDATES: Candidate[] = [
+// ---------------------------------------------------------------------------
+// DEMO CANDIDATES — public shape only (NO internal/admin fields)
+// ---------------------------------------------------------------------------
+
+// 5 Fictional Demo Candidates — PUBLIC SHAPE ONLY
+// IMPORTANT: These contain current_score (the single public vote count).
+// They do NOT contain paid_votes, bonus_votes, penalty_points, or total_votes.
+export const DEMO_CANDIDATES: PublicCandidate[] = [
   {
     id: "cand-michael-anderson",
     name: "Michael & Sarah Anderson",
@@ -212,11 +287,7 @@ export const DEMO_CANDIDATES: Candidate[] = [
     biography: "Michael & Sarah have served for years on public wellness and community advisory boards. Together they spearheaded peer-support initiatives and continue to advocate for accessible wellness services across all community departments.",
     vision: "Our vision is a supportive environment where no participant faces emotional or financial hardship alone. Every voice matters in building a stronger community.",
     status: "active",
-    paid_votes: 2400,
-    bonus_votes: 100,
-    penalty_points: 50,
-    current_score: 2450, // 2400 + 100 - 50 = 2450
-    total_votes: 2450,
+    current_score: 2450,
     created_at: new Date(Date.now() - 86400000 * 5).toISOString(),
     updated_at: new Date().toISOString(),
   },
@@ -237,11 +308,7 @@ export const DEMO_CANDIDATES: Candidate[] = [
     vision: "I believe in open communication between leadership and the community. We will streamline project approvals and guarantee fair resource allocation.",
     photo_url: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=600&q=80",
     status: "active",
-    paid_votes: 1980,
-    bonus_votes: 50,
-    penalty_points: 50,
-    current_score: 1980, // 1980 + 50 - 50 = 1980
-    total_votes: 1980,
+    current_score: 1980,
     created_at: new Date(Date.now() - 86400000 * 4).toISOString(),
     updated_at: new Date().toISOString(),
   },
@@ -262,11 +329,7 @@ export const DEMO_CANDIDATES: Candidate[] = [
     vision: "Our organization should be an active pillar of positive civic impact. We will build lasting partnerships that create real opportunities for everyone.",
     photo_url: "https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&w=600&q=80",
     status: "active",
-    paid_votes: 1600,
-    bonus_votes: 50,
-    penalty_points: 0,
-    current_score: 1650, // 1600 + 50 - 0 = 1650
-    total_votes: 1650,
+    current_score: 1650,
     created_at: new Date(Date.now() - 86400000 * 3).toISOString(),
     updated_at: new Date().toISOString(),
   },
@@ -287,11 +350,7 @@ export const DEMO_CANDIDATES: Candidate[] = [
     vision: "Professional empowerment should directly translate into career success and personal growth. I will expand networking programs and career development centers.",
     photo_url: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=600&q=80",
     status: "active",
-    paid_votes: 1320,
-    bonus_votes: 0,
-    penalty_points: 0,
     current_score: 1320,
-    total_votes: 1320,
     created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
     updated_at: new Date().toISOString(),
   },
@@ -312,11 +371,7 @@ export const DEMO_CANDIDATES: Candidate[] = [
     vision: "Community life should be vibrant, welcoming, and memorable for every single member. Together we will make this season unforgettable.",
     photo_url: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=600&q=80",
     status: "active",
-    paid_votes: 980,
-    bonus_votes: 0,
-    penalty_points: 0,
     current_score: 980,
-    total_votes: 980,
     created_at: new Date(Date.now() - 86400000 * 1).toISOString(),
     updated_at: new Date().toISOString(),
   },
@@ -430,13 +485,17 @@ export const INITIAL_DEMO_LEDGER: ScoreLedgerEntry[] = [
   },
 ];
 
-// Helper to access demo candidates from localStorage for local persistence
-function getDemoCandidates(): Candidate[] {
+// Helper to access demo candidates from localStorage for local persistence.
+// localStorage stores only the PUBLIC shape — no internal fields.
+function getDemoCandidates(): PublicCandidate[] {
   try {
     const raw = localStorage.getItem("vote_demo_candidates");
     if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      const parsed: unknown[] = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        // Strip any internal fields that may have been saved by an older version
+        return (parsed as Record<string, unknown>[]).map(pickPublicFields);
+      }
     }
   } catch {
     // ignore
@@ -444,9 +503,11 @@ function getDemoCandidates(): Candidate[] {
   return [...DEMO_CANDIDATES];
 }
 
-function saveDemoCandidates(list: Candidate[]): void {
+function saveDemoCandidates(list: PublicCandidate[]): void {
   try {
-    localStorage.setItem("vote_demo_candidates", JSON.stringify(list));
+    // Persist only the public shape to localStorage
+    const safe = list.map(pickPublicFields);
+    localStorage.setItem("vote_demo_candidates", JSON.stringify(safe));
   } catch {
     // ignore
   }
@@ -473,12 +534,32 @@ function saveDemoLedger(ledger: ScoreLedgerEntry[]): void {
   }
 }
 
-export async function fetchCandidatesSafe(limit?: number): Promise<Candidate[]> {
+/**
+ * Public-safe candidate fetch.
+ * Selects ONLY the public columns — never paid_votes, bonus_votes,
+ * penalty_points, or any other internal/admin field.
+ * Returns PublicCandidate[] so callers cannot accidentally expose
+ * internal data through TypeScript.
+ */
+export async function fetchCandidatesSafe(limit?: number): Promise<PublicCandidate[]> {
   if (IS_SUPABASE_READY) {
     try {
+      // 1. Primary: query public_candidates view (protected at the database level)
+      let viewQuery = (supabase.from("public_candidates" as any) as any)
+        .select(PUBLIC_CANDIDATE_COLUMNS)
+        .order("current_score", { ascending: false });
+
+      if (limit) viewQuery = viewQuery.limit(limit);
+
+      const viewRes = await viewQuery;
+      if (!viewRes.error && viewRes.data && viewRes.data.length > 0) {
+        return (viewRes.data as unknown as Record<string, unknown>[]).map(pickPublicFields);
+      }
+
+      // 2. Rollout fallback: query base candidates table if view does not exist yet (pre-migration)
       let query = supabase
         .from("candidates")
-        .select("*")
+        .select(PUBLIC_CANDIDATE_COLUMNS)
         .eq("status", "active")
         .order("current_score", { ascending: false });
 
@@ -486,20 +567,13 @@ export async function fetchCandidatesSafe(limit?: number): Promise<Candidate[]> 
 
       const { data, error } = await query;
       if (!error && data) {
-        return data.map((c) => ({
-          ...c,
-          candidate_type: (c.candidate_type === "couple" ? "couple" : "individual") as CandidateType,
-          current_score: c.current_score ?? c.total_votes ?? 0,
-          paid_votes: c.paid_votes ?? c.total_votes ?? 0,
-          bonus_votes: c.bonus_votes ?? 0,
-          penalty_points: c.penalty_points ?? 0,
-        }));
+        return (data as unknown as Record<string, unknown>[]).map(pickPublicFields);
       }
-      if (error) {
-        console.error("Supabase candidates fetch error:", error);
+      if (error && error.code !== "PGRST205") {
+        console.error("[Supabase] candidates fetch error (non-sensitive):", error.code);
       }
-    } catch (err) {
-      console.error("Supabase candidates query failed:", err);
+    } catch {
+      // Silent: do not expose stack traces or internal errors
     }
   }
 
@@ -514,13 +588,31 @@ export async function fetchCandidatesSafe(limit?: number): Promise<Candidate[]> 
   return [];
 }
 
-export async function fetchCandidateByIdSafe(id?: string | null): Promise<Candidate | null> {
+/**
+ * Public-safe single-candidate fetch.
+ * Selects ONLY the public columns — never internal/admin fields.
+ */
+export async function fetchCandidateByIdSafe(id?: string | null): Promise<PublicCandidate | null> {
   if (!id) return null;
 
   if (IS_SUPABASE_READY) {
     try {
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-      let query = supabase.from("candidates").select("*");
+
+      // 1. Primary: query public_candidates view
+      let viewQuery = (supabase.from("public_candidates" as any) as any).select(PUBLIC_CANDIDATE_COLUMNS);
+      if (isUuid) {
+        viewQuery = viewQuery.or(`id.eq.${id},slug.eq.${id}`);
+      } else {
+        viewQuery = viewQuery.eq("slug", id);
+      }
+      const viewRes = await viewQuery.maybeSingle();
+      if (!viewRes.error && viewRes.data) {
+        return pickPublicFields(viewRes.data as unknown as Record<string, unknown>);
+      }
+
+      // 2. Rollout fallback: base candidates table
+      let query = supabase.from("candidates").select(PUBLIC_CANDIDATE_COLUMNS);
       if (isUuid) {
         query = query.or(`id.eq.${id},slug.eq.${id}`);
       } else {
@@ -529,17 +621,10 @@ export async function fetchCandidateByIdSafe(id?: string | null): Promise<Candid
       const { data, error } = await query.maybeSingle();
 
       if (!error && data) {
-        return {
-          ...data,
-          candidate_type: (data.candidate_type === "couple" ? "couple" : "individual") as CandidateType,
-          current_score: data.current_score ?? data.total_votes ?? 0,
-          paid_votes: data.paid_votes ?? data.total_votes ?? 0,
-          bonus_votes: data.bonus_votes ?? 0,
-          penalty_points: data.penalty_points ?? 0,
-        };
+        return pickPublicFields(data as unknown as Record<string, unknown>);
       }
-    } catch (err) {
-      console.error("Supabase candidate by id failed:", err);
+    } catch {
+      // Silent: do not expose internal errors
     }
   }
 
@@ -551,6 +636,36 @@ export async function fetchCandidateByIdSafe(id?: string | null): Promise<Candid
   }
 
   return null;
+}
+
+/**
+ * Admin-only candidate fetch.
+ * Returns the full Candidate object including internal fields (paid_votes, bonus_votes, etc.)
+ * Only to be used in authenticated Admin pages.
+ */
+export async function fetchAdminCandidates(): Promise<Candidate[]> {
+  if (IS_SUPABASE_READY) {
+    try {
+      const { data, error } = await supabase
+        .from("candidates")
+        .select("*")
+        .order("current_score", { ascending: false });
+
+      if (!error && data) {
+        return data as Candidate[];
+      }
+    } catch {
+      // Fall through to demo
+    }
+  }
+
+  return DEMO_CANDIDATES.map((c) => ({
+    ...c,
+    total_votes: c.current_score,
+    paid_votes: c.current_score,
+    bonus_votes: 0,
+    penalty_points: 0,
+  })) as Candidate[];
 }
 
 /**
@@ -690,14 +805,11 @@ export async function adjustCandidateScore({
   const cand = candidates[candIndex];
   const prevScore = getCandidateScore(cand);
 
-  let signedQty = quantity;
   let delta = quantity;
 
   if (type === "PENALTY") {
-    signedQty = -Math.abs(quantity);
     delta = -Math.abs(quantity);
   } else if (type === "BONUS" || type === "PAID_VOTE") {
-    signedQty = Math.abs(quantity);
     delta = Math.abs(quantity);
   }
 
@@ -705,14 +817,10 @@ export async function adjustCandidateScore({
   const newScore = Math.max(0, rawScore);
   const cappedAtZero = rawScore < 0;
 
-  // Update candidate metrics
-  const updatedCand: Candidate = {
+  // Update the public score field only — demo mode never tracks breakdown
+  const updatedCand: PublicCandidate = {
     ...cand,
     current_score: newScore,
-    total_votes: newScore,
-    paid_votes: (cand.paid_votes ?? cand.total_votes ?? 0) + (type === "PAID_VOTE" ? quantity : 0),
-    bonus_votes: (cand.bonus_votes ?? 0) + (type === "BONUS" ? quantity : (type === "CORRECTION" && quantity > 0 ? quantity : 0)),
-    penalty_points: (cand.penalty_points ?? 0) + (type === "PENALTY" ? Math.abs(quantity) : (type === "CORRECTION" && quantity < 0 ? Math.abs(quantity) : 0)),
     updated_at: new Date().toISOString(),
   };
 
@@ -726,7 +834,7 @@ export async function adjustCandidateScore({
     id: ledgerId,
     candidate_id: candidateId,
     type,
-    quantity: signedQty,
+    quantity: delta,
     previous_score: prevScore,
     new_score: newScore,
     reason: reason.trim(),

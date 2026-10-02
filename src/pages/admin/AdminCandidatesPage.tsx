@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { Helmet } from "react-helmet-async";
 import { Plus, Edit, Trash2, Pause, Play, Loader2, X, Upload, AlertCircle, Users, User, Gift, ShieldAlert, History } from "lucide-react";
-import { supabase, type Candidate, type CandidateType, fetchCandidatesSafe, getCandidateScore, IS_SUPABASE_READY } from "@/lib/supabase";
+import { supabase, type Candidate, type CandidateType, fetchAdminCandidates, getCandidateScore, IS_SUPABASE_READY } from "@/lib/supabase";
 import { formatNumber, slugify } from "@/lib/utils";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { ScoreAdjustmentModal } from "@/components/admin/ScoreAdjustmentModal";
@@ -426,10 +426,10 @@ export function AdminCandidatesPage() {
         perfMark("Supabase candidates query END");
       }
 
-      const demo = await fetchCandidatesSafe();
+      const demo = await fetchAdminCandidates();
       setCandidates(demo);
     } catch {
-      const demo = await fetchCandidatesSafe();
+      const demo = await fetchAdminCandidates();
       setCandidates(demo);
     } finally {
       setLoading(false);

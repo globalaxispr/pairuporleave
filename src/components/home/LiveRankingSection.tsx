@@ -1,14 +1,14 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Trophy, TrendingUp, Vote, ArrowRight } from "lucide-react";
-import { supabase, fetchCandidatesSafe, getCandidateScore, type Candidate } from "@/lib/supabase";
+import { supabase, fetchCandidatesSafe, getCandidateScore, pickPublicFields, type PublicCandidate } from "@/lib/supabase";
 import { formatNumber } from "@/lib/utils";
 import { VoteModal } from "@/components/voting/VoteModal";
 
 export function LiveRankingSection() {
-  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [candidates, setCandidates] = useState<PublicCandidate[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
+  const [selectedCandidate, setSelectedCandidate] = useState<PublicCandidate | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -30,11 +30,12 @@ export function LiveRankingSection() {
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "candidates" },
         (payload) => {
+          const updated = pickPublicFields(payload.new as Record<string, unknown>);
           setCandidates((prev) => {
-            const updated = prev.map((c) =>
-              c.id === (payload.new as Candidate).id ? { ...c, ...(payload.new as Candidate) } : c
+            const mapped = prev.map((c) =>
+              c.id === updated.id ? { ...c, ...updated } : c
             );
-            return [...updated].sort((a, b) => getCandidateScore(b) - getCandidateScore(a));
+            return [...mapped].sort((a, b) => getCandidateScore(b) - getCandidateScore(a));
           });
         }
       )
@@ -238,7 +239,7 @@ export function LiveRankingSection() {
                         )}
                       </div>
                       <div style={{ fontSize: "0.8125rem", color: "#6B6870", marginBottom: "0.875rem" }}>
-                        {top1.position} · <span style={{ color: "#7A0C2E", fontWeight: 600 }}>{top1.category}</span>
+                        {top1.position} Â· <span style={{ color: "#7A0C2E", fontWeight: 600 }}>{top1.category}</span>
                       </div>
 
                       {/* Vote pill */}
@@ -258,7 +259,7 @@ export function LiveRankingSection() {
                       >
                         <TrendingUp size={16} color="#E51B3E" />
                         <span style={{ fontSize: "1.25rem", fontWeight: 900, color: "#7A0C2E" }}>
-                          {formatNumber(top1.total_votes)}
+                          {formatNumber(getCandidateScore(top1))}
                         </span>
                         <span style={{ fontSize: "0.8125rem", fontWeight: 700, color: "#6B6870" }}>
                           VOTES
@@ -360,7 +361,7 @@ export function LiveRankingSection() {
                       </div>
 
                       <div style={{ fontSize: "0.9375rem", fontWeight: 800, color: "#7A0C2E", marginBottom: "0.75rem" }}>
-                        {formatNumber(top2.total_votes)} <span style={{ fontSize: "0.6875rem", color: "#6B6870", fontWeight: 600 }}>votes</span>
+                        {formatNumber(getCandidateScore(top2))} <span style={{ fontSize: "0.6875rem", color: "#6B6870", fontWeight: 600 }}>votes</span>
                       </div>
 
                       <button
@@ -449,7 +450,7 @@ export function LiveRankingSection() {
                       </div>
 
                       <div style={{ fontSize: "0.9375rem", fontWeight: 800, color: "#7A0C2E", marginBottom: "0.75rem" }}>
-                        {formatNumber(top3.total_votes)} <span style={{ fontSize: "0.6875rem", color: "#6B6870", fontWeight: 600 }}>votes</span>
+                        {formatNumber(getCandidateScore(top3))} <span style={{ fontSize: "0.6875rem", color: "#6B6870", fontWeight: 600 }}>votes</span>
                       </div>
 
                       <button
@@ -535,7 +536,7 @@ export function LiveRankingSection() {
                     </div>
                     <div style={{ fontSize: "0.75rem", color: "#6B6870", marginBottom: "0.75rem" }}>{top2.position}</div>
                     <div style={{ fontSize: "1.125rem", fontWeight: 900, color: "#7A0C2E", marginBottom: "1rem" }}>
-                      {formatNumber(top2.total_votes)} votes
+                      {formatNumber(getCandidateScore(top2))} votes
                     </div>
                     <button
                       className="btn-vote"
@@ -616,7 +617,7 @@ export function LiveRankingSection() {
                         </span>
                       )}
                     </div>
-                    <div style={{ fontSize: "0.8125rem", color: "#6B6870", marginBottom: "1rem" }}>{top1.position} · {top1.category}</div>
+                    <div style={{ fontSize: "0.8125rem", color: "#6B6870", marginBottom: "1rem" }}>{top1.position} Â· {top1.category}</div>
                     <div
                       style={{
                         background: "#FFF8FA",
@@ -627,7 +628,7 @@ export function LiveRankingSection() {
                       }}
                     >
                       <span style={{ fontSize: "1.375rem", fontWeight: 900, color: "#7A0C2E" }}>
-                        {formatNumber(top1.total_votes)}
+                        {formatNumber(getCandidateScore(top1))}
                       </span>{" "}
                       <span style={{ fontSize: "0.8125rem", fontWeight: 700, color: "#6B6870" }}>VOTES</span>
                     </div>
@@ -699,7 +700,7 @@ export function LiveRankingSection() {
                     </div>
                     <div style={{ fontSize: "0.75rem", color: "#6B7280", marginBottom: "0.75rem" }}>{top3.position}</div>
                     <div style={{ fontSize: "1.125rem", fontWeight: 900, color: "#7A0C2E", marginBottom: "1rem" }}>
-                      {formatNumber(top3.total_votes)} votes
+                      {formatNumber(getCandidateScore(top3))} votes
                     </div>
                     <button
                       className="btn-vote"

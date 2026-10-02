@@ -1,18 +1,18 @@
 import { useEffect, useState, useMemo } from "react";
 import { Helmet } from "react-helmet-async";
 import { Trophy, TrendingUp, Vote, Zap, SlidersHorizontal } from "lucide-react";
-import { supabase, type Candidate, fetchCandidatesSafe, getCandidateScore } from "@/lib/supabase";
+import { supabase, type PublicCandidate, fetchCandidatesSafe, getCandidateScore, pickPublicFields } from "@/lib/supabase";
 import { formatNumber, SITE_URL } from "@/lib/utils";
 import { VoteModal } from "@/components/voting/VoteModal";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { ErrorState } from "@/components/ui/ErrorState";
 
 export function RankingPage() {
-  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [candidates, setCandidates] = useState<PublicCandidate[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [category, setCategory] = useState("");
-  const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
+  const [selectedCandidate, setSelectedCandidate] = useState<PublicCandidate | null>(null);
 
   async function load() {
     setLoading(true);
@@ -39,9 +39,12 @@ export function RankingPage() {
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "candidates" },
         (payload) => {
+          // pickPublicFields strips any internal columns (paid_votes, bonus_votes,
+          // penalty_points, etc.) from the realtime event before merging into state.
+          const updated = pickPublicFields(payload.new as Record<string, unknown>);
           setCandidates((prev) =>
             [...prev.map((c) =>
-              c.id === (payload.new as Candidate).id ? { ...c, ...(payload.new as Candidate) } : c
+              c.id === updated.id ? { ...c, ...updated } : c
             )].sort((a, b) => getCandidateScore(b) - getCandidateScore(a))
           );
         }
@@ -337,7 +340,7 @@ export function RankingPage() {
                       >
                         <TrendingUp size={18} color="#E51B3E" />
                         <span style={{ fontSize: "1.375rem", fontWeight: 900, color: "#E51B3E" }}>
-                          {formatNumber(top1.total_votes)}
+                          {formatNumber(getCandidateScore(top1))}
                         </span>
                         <span style={{ fontSize: "0.875rem", fontWeight: 700, color: "#7A0C2E" }}>VOTES</span>
                       </div>
@@ -442,7 +445,7 @@ export function RankingPage() {
                         }}
                       >
                         <span style={{ fontSize: "1.1875rem", fontWeight: 800, color: "#7A0C2E" }}>
-                          {formatNumber(top2.total_votes)}
+                          {formatNumber(getCandidateScore(top2))}
                         </span>
                         <span style={{ fontSize: "0.8125rem", color: "#6B6870", fontWeight: 600 }}>votes</span>
                       </div>
@@ -547,7 +550,7 @@ export function RankingPage() {
                         }}
                       >
                         <span style={{ fontSize: "1.1875rem", fontWeight: 800, color: "#E51B3E" }}>
-                          {formatNumber(top3.total_votes)}
+                          {formatNumber(getCandidateScore(top3))}
                         </span>
                         <span style={{ fontSize: "0.8125rem", color: "#6B6870", fontWeight: 600 }}>votes</span>
                       </div>
@@ -661,7 +664,7 @@ export function RankingPage() {
 
                         <div style={{ textAlign: "right", flexShrink: 0 }}>
                           <div style={{ fontWeight: 800, fontSize: "1rem", color: "#E51B3E" }}>
-                            {formatNumber(cand.total_votes)}
+                            {formatNumber(getCandidateScore(cand))}
                           </div>
                           <div style={{ fontSize: "0.6875rem", color: "#6B6870" }}>votes</div>
                         </div>

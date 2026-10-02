@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Users, Vote, Heart } from "lucide-react";
-import { supabase, fetchCandidatesSafe } from "@/lib/supabase";
+import { supabase, fetchCandidatesSafe, getCandidateScore } from "@/lib/supabase";
 import { formatNumber } from "@/lib/utils";
 
 interface Stats {
@@ -69,36 +69,31 @@ export function StatsSection() {
     async function loadStats() {
       try {
         const [candidatesRes, votesRes] = await Promise.all([
-          supabase
-            .from("candidates")
-            .select("id", { count: "exact", head: true })
-            .eq("status", "active"),
-          supabase
-            .from("candidates")
-            .select("total_votes")
-            .eq("status", "active"),
+          (supabase.from("public_candidates" as any) as any)
+            .select("id", { count: "exact", head: true }),
+          (supabase.from("public_candidates" as any) as any)
+            .select("current_score"),
         ]);
 
         let totalCandidates = candidatesRes.count ?? 0;
         let totalVotes = (votesRes.data ?? []).reduce(
-          (sum, c) => sum + (c.total_votes ?? 0),
+          (sum: number, c: { current_score?: number }) => sum + (c.current_score ?? 0),
           0
         );
 
         if (totalCandidates === 0) {
           const fallback = await fetchCandidatesSafe();
           totalCandidates = fallback.length;
-          totalVotes = fallback.reduce((sum, c) => sum + (c.total_votes ?? 0), 0);
+          totalVotes = fallback.reduce((sum, c) => sum + getCandidateScore(c), 0);
         }
 
         const totalSupporters = Math.round(totalVotes * 0.6); // approx unique supporters
 
         setStats({ totalCandidates, totalVotes, totalSupporters });
-      } catch (err) {
-        console.error("Failed to load stats:", err);
+      } catch {
         const fallback = await fetchCandidatesSafe();
         const totalCandidates = fallback.length;
-        const totalVotes = fallback.reduce((sum, c) => sum + (c.total_votes ?? 0), 0);
+        const totalVotes = fallback.reduce((sum, c) => sum + getCandidateScore(c), 0);
         setStats({ totalCandidates, totalVotes, totalSupporters: Math.round(totalVotes * 0.6) });
       }
     }

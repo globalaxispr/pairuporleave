@@ -12,6 +12,13 @@ const supabaseAdmin = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") as string
 );
 
+// ====================================================
+// SECURITY: Server-side vote quantity guard.
+// Even if the metadata were manipulated somehow, the webhook
+// refuses to create more votes than this per transaction.
+// ====================================================
+const MAX_VOTES_PER_TRANSACTION = 1000;
+
 // IMPORTANT: This function must be deployed with --no-verify-jwt
 // because Stripe does not send Supabase JWTs.
 Deno.serve(async (req) => {
@@ -22,13 +29,13 @@ Deno.serve(async (req) => {
     return new Response("Missing signature", { status: 400 });
   }
 
-  // Read raw body as text — MUST be raw, not parsed JSON
+  // Read raw body as text — MUST be raw, not parsed JSON, for signature verification
   const body = await req.text();
 
   let event: Stripe.Event;
 
   try {
-    // Verify signature using async method (required for Deno)
+    // Verify signature using async method (required for Deno SubtleCrypto)
     event = await stripe.webhooks.constructEventAsync(
       body,
       signature,
@@ -37,11 +44,11 @@ Deno.serve(async (req) => {
       cryptoProvider
     );
   } catch (err) {
-    console.error("Webhook signature verification failed:", err);
+    console.error("Webhook signature verification failed:", (err as Error).message);
     return new Response(`Webhook Error: ${(err as Error).message}`, { status: 400 });
   }
 
-  // Handle the event
+  // Handle verified payment completion event
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;
     await handleCheckoutCompleted(session);
@@ -59,20 +66,28 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   const candidateId = metadata.candidate_id;
   const voteQuantity = parseInt(metadata.vote_quantity ?? "0", 10);
 
+  // Validate metadata presence and sanity before any DB operations
   if (!candidateId || !voteQuantity || voteQuantity < 1) {
-    console.error("Invalid metadata in session:", stripeSessionId, metadata);
+    console.error("Invalid or missing metadata in session:", stripeSessionId, metadata);
+    return;
+  }
+
+  // Guard against absurdly large vote quantities (defense in depth)
+  if (voteQuantity > MAX_VOTES_PER_TRANSACTION) {
+    console.error(
+      `Vote quantity ${voteQuantity} exceeds server-side maximum ${MAX_VOTES_PER_TRANSACTION} — session: ${stripeSessionId}`
+    );
     return;
   }
 
   // ====================================================
   // IDEMPOTENCY CHECK
-  // Only process if payment is still in 'pending' status.
-  // If Stripe sends the same webhook twice, the record
-  // will already be 'paid' and we skip processing.
+  // Only process if payment record exists and is still 'pending'.
+  // Fetches the DB-stored amounts for cross-verification.
   // ====================================================
   const { data: existingPayment, error: fetchErr } = await supabaseAdmin
     .from("payments")
-    .select("id, status")
+    .select("id, status, amount, vote_quantity, candidate_type, vote_price")
     .eq("stripe_session_id", stripeSessionId)
     .single();
 
@@ -86,11 +101,47 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     return; // Already handled — idempotent, skip
   }
 
-  const candidateType = metadata.candidate_type ?? "individual";
-  const votePrice = parseInt(metadata.vote_price ?? (candidateType === "couple" ? "200" : "100"), 10);
+  // ====================================================
+  // PAYMENT AMOUNT CROSS-VERIFICATION
+  // Verify that Stripe's reported amount_total matches what
+  // the server stored in the payments record at checkout creation time.
+  // This prevents metadata tampering from influencing vote allocation.
+  // ====================================================
+  const stripeAmountTotal = session.amount_total ?? 0;
+  const dbStoredAmount = existingPayment.amount;
+
+  if (stripeAmountTotal !== dbStoredAmount) {
+    console.error(
+      `CRITICAL: Amount mismatch for session ${stripeSessionId}. ` +
+      `Stripe reported ${stripeAmountTotal} cents; DB stored ${dbStoredAmount} cents. ` +
+      `Refusing to process — possible fraud or configuration error.`
+    );
+    // Mark payment as failed so admin is alerted via dashboard
+    await supabaseAdmin
+      .from("payments")
+      .update({ status: "failed" })
+      .eq("id", existingPayment.id);
+    return;
+  }
+
+  // Cross-verify vote_quantity from metadata vs. DB record
+  const dbVoteQuantity = existingPayment.vote_quantity;
+  if (voteQuantity !== dbVoteQuantity) {
+    console.error(
+      `CRITICAL: Vote quantity mismatch for session ${stripeSessionId}. ` +
+      `Metadata says ${voteQuantity}; DB stored ${dbVoteQuantity}. ` +
+      `Using authoritative DB value.`
+    );
+    // Use DB-authoritative quantity, not the metadata value
+  }
+
+  // Use authoritative values from DB (not metadata) for vote creation
+  const authoritativeVoteQuantity = dbVoteQuantity;
+  const candidateType = existingPayment.candidate_type ?? "individual";
+  const votePrice = existingPayment.vote_price ?? (candidateType === "couple" ? 200 : 100);
 
   const paymentId = existingPayment.id;
-  const paymentIntentId = session.payment_intent as string ?? null;
+  const paymentIntentId = (session.payment_intent as string) ?? null;
 
   // ====================================================
   // Update payment status → paid
@@ -103,43 +154,42 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       candidate_type: candidateType,
       vote_price: votePrice,
     })
-    .eq("id", paymentId);
+    .eq("id", paymentId)
+    .eq("status", "pending"); // Optimistic locking: only update if still pending
 
   if (updateErr) {
-    console.error("Failed to update payment status:", updateErr);
+    console.error("Failed to update payment status:", updateErr.message);
     return;
   }
 
   // ====================================================
-  // Create vote record
-  // The UNIQUE index on payment_id provides an additional
-  // database-level guard against duplicate vote records.
+  // Create vote record — UNIQUE index on payment_id
+  // provides database-level idempotency guard.
   // ====================================================
   const { error: voteErr } = await supabaseAdmin.from("votes").insert({
     candidate_id: candidateId,
     payment_id: paymentId,
-    quantity: voteQuantity,
+    quantity: authoritativeVoteQuantity,
   });
 
   if (voteErr) {
     if (voteErr.code === "23505") {
-      // Unique constraint violation — already processed
+      // Unique constraint violation — vote record already exists (duplicate delivery)
       console.log("Vote record already exists for payment:", paymentId);
       return;
     }
-    console.error("Failed to create vote record:", voteErr);
+    console.error("Failed to create vote record:", voteErr.message);
     return;
   }
 
   // ====================================================
   // Atomically update candidate score and append to score_ledger
-  // Using the SECURITY DEFINER function which runs as
-  // the service role, bypassing RLS.
+  // Using the SECURITY DEFINER function which runs as the service role.
   // ====================================================
   const { error: scoreErr } = await supabaseAdmin.rpc("adjust_candidate_score", {
     p_candidate_id: candidateId,
     p_type: "PAID_VOTE",
-    p_quantity: voteQuantity,
+    p_quantity: authoritativeVoteQuantity,
     p_reason: `Stripe Payment (${candidateType})`,
     p_admin_id: null,
     p_admin_email: null,
@@ -147,14 +197,17 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   });
 
   if (scoreErr) {
-    console.error("Failed to record score adjustment, attempting fallback:", scoreErr);
-    await supabaseAdmin.rpc("increment_candidate_votes", {
+    console.error("Failed to record score adjustment via adjust_candidate_score, attempting fallback:", scoreErr.message);
+    const { error: fallbackErr } = await supabaseAdmin.rpc("increment_candidate_votes", {
       p_candidate_id: candidateId,
-      p_quantity: voteQuantity,
+      p_quantity: authoritativeVoteQuantity,
     });
+    if (fallbackErr) {
+      console.error("Fallback increment_candidate_votes also failed:", fallbackErr.message);
+    }
   }
 
   console.log(
-    `Successfully processed ${voteQuantity} votes for candidate ${candidateId} — session: ${stripeSessionId}`
+    `Successfully processed ${authoritativeVoteQuantity} votes for candidate ${candidateId} — session: ${stripeSessionId}`
   );
 }

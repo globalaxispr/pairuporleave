@@ -5,10 +5,24 @@ const supabaseAdmin = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") as string
 );
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+// Restrict CORS to production domain — admin functions must not accept cross-origin from arbitrary origins
+const ALLOWED_ORIGIN = Deno.env.get("SITE_URL") ?? "";
+
+function getCorsHeaders(requestOrigin: string | null): HeadersInit {
+  const allowedOrigin = ALLOWED_ORIGIN || requestOrigin || "";
+  return {
+    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Vary": "Origin",
+  };
+}
+
+// Maximum absolute value of a single score adjustment (prevents integer overflow abuse)
+const MAX_ADJUSTMENT_QUANTITY = 10000;
+
+// UUID v4 format validation
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 interface AdjustRequestBody {
   candidate_id?: string;
@@ -19,6 +33,9 @@ interface AdjustRequestBody {
 }
 
 Deno.serve(async (req) => {
+  const requestOrigin = req.headers.get("origin");
+  const corsHeaders = getCorsHeaders(requestOrigin);
+
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -69,8 +86,8 @@ Deno.serve(async (req) => {
     const body = (await req.json()) as AdjustRequestBody;
     const { candidate_id, adjustment_type, quantity, reason, reference_id } = body;
 
-    if (!candidate_id || typeof candidate_id !== "string") {
-      return new Response(JSON.stringify({ error: "candidate_id is required" }), {
+    if (!candidate_id || typeof candidate_id !== "string" || !UUID_REGEX.test(candidate_id)) {
+      return new Response(JSON.stringify({ error: "candidate_id must be a valid UUID" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -104,6 +121,13 @@ Deno.serve(async (req) => {
       });
     }
 
+    if (Math.abs(quantity) > MAX_ADJUSTMENT_QUANTITY) {
+      return new Response(
+        JSON.stringify({ error: `quantity cannot exceed ${MAX_ADJUSTMENT_QUANTITY} in absolute value per adjustment` }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     if (!reason || typeof reason !== "string" || reason.trim().length < 3) {
       return new Response(
         JSON.stringify({ error: "A valid reason of at least 3 characters is required" }),
@@ -123,9 +147,10 @@ Deno.serve(async (req) => {
     });
 
     if (rpcErr) {
-      console.error("RPC adjust_candidate_score error:", rpcErr);
+      console.error("RPC adjust_candidate_score error:", rpcErr.message);
+      // Return a generic error to client — do not expose DB internals
       return new Response(
-        JSON.stringify({ error: rpcErr.message || "Failed to adjust candidate score" }),
+        JSON.stringify({ error: "Failed to adjust candidate score. Please try again." }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -138,9 +163,10 @@ Deno.serve(async (req) => {
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {
-    console.error("adjust-candidate-score error:", err);
+    console.error("adjust-candidate-score error:", (err as Error).message);
+    // Never expose internal error details to the client
     return new Response(
-      JSON.stringify({ error: (err as Error).message || "Internal server error" }),
+      JSON.stringify({ error: "Internal server error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

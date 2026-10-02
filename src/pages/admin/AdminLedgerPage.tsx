@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import {
   type Candidate, type ScoreLedgerEntry, type ScoreAdjustmentType,
-  fetchCandidateLedgerSafe, fetchCandidatesSafe, adjustCandidateScore, getCandidateScore
+  fetchCandidateLedgerSafe, fetchAdminCandidates, adjustCandidateScore, getCandidateScore
 } from "@/lib/supabase";
 import { formatNumber, formatDate } from "@/lib/utils";
 import { AdminLayout } from "@/components/admin/AdminLayout";
@@ -39,7 +39,7 @@ export function AdminLedgerPage() {
     perfMark("Supabase ledger+candidates queries START");
     const [ledgerData, candData] = await Promise.all([
       fetchCandidateLedgerSafe(),
-      fetchCandidatesSafe(),
+      fetchAdminCandidates(),
     ]);
     perfMark("Supabase ledger+candidates queries END");
     setEntries(ledgerData);

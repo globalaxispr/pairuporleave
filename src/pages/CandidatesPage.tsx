@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { Helmet } from "react-helmet-async";
-import { supabase, type Candidate, fetchCandidatesSafe } from "@/lib/supabase";
+import { supabase, type PublicCandidate, fetchCandidatesSafe, getCandidateScore, pickPublicFields } from "@/lib/supabase";
 import { CandidateGrid } from "@/components/candidates/CandidateGrid";
 import { CandidateFilter } from "@/components/candidates/CandidateFilter";
 import { LoadingState } from "@/components/ui/LoadingState";
@@ -19,7 +19,7 @@ function useDebounce<T>(value: T, delay = 300): T {
 }
 
 export function CandidatesPage() {
-  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [candidates, setCandidates] = useState<PublicCandidate[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -48,8 +48,9 @@ export function CandidatesPage() {
     const channel = supabase
       .channel("candidates-page")
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "candidates" }, (payload) => {
+        const updated = pickPublicFields(payload.new as Record<string, unknown>);
         setCandidates((prev) =>
-          prev.map((c) => c.id === (payload.new as Candidate).id ? { ...c, ...(payload.new as Candidate) } : c)
+          prev.map((c) => c.id === updated.id ? { ...c, ...updated } : c)
         );
       })
       .subscribe();
@@ -74,10 +75,10 @@ export function CandidatesPage() {
     }
     if (category) list = list.filter((c) => c.category === category);
     switch (sort) {
-      case "votes_asc":   list.sort((a, b) => a.total_votes - b.total_votes); break;
+      case "votes_asc":   list.sort((a, b) => getCandidateScore(a) - getCandidateScore(b)); break;
       case "name_asc":    list.sort((a, b) => a.name.localeCompare(b.name)); break;
       case "created_desc":list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()); break;
-      default:             list.sort((a, b) => b.total_votes - a.total_votes); break;
+      default:             list.sort((a, b) => getCandidateScore(b) - getCandidateScore(a)); break;
     }
     return list;
   }, [candidates, debouncedSearch, category, sort]);

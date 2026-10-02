@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { Users, Vote, DollarSign, TrendingUp, Activity, BarChart3 } from "lucide-react";
-import { supabase, fetchCandidatesSafe, IS_SUPABASE_READY } from "@/lib/supabase";
+import { supabase, DEMO_CANDIDATES, IS_SUPABASE_READY } from "@/lib/supabase";
 import { formatNumber, formatCurrency } from "@/lib/utils";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { perfPageMount, perfMark, perfNavEnd } from "@/lib/adminPerf";
@@ -81,7 +81,8 @@ export function AdminDashboardPage() {
         perfMark("Supabase queries END");
         let cands = candidateRows;
         if (!cands || cands.length === 0) {
-          cands = await fetchCandidatesSafe();
+          // Admin fallback: use demo data (full shape with internal fields)
+          cands = DEMO_CANDIDATES as unknown as typeof candidateRows;
         }
 
         const totalScore = (cands ?? []).reduce((s, c) => s + (c.current_score ?? c.total_votes ?? 0), 0);

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { TrendingUp, Vote, Trophy, ArrowRight } from "lucide-react";
-import { supabase, type Candidate, fetchCandidatesSafe, getCandidateScore } from "@/lib/supabase";
+import { supabase, type PublicCandidate, fetchCandidatesSafe, getCandidateScore, pickPublicFields } from "@/lib/supabase";
 import { formatNumber, SITE_URL } from "@/lib/utils";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -14,10 +14,10 @@ const rankBadges: Record<number, { bg: string; color: string; border: string; la
 };
 
 export function ResultsPage() {
-  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [candidates, setCandidates] = useState<PublicCandidate[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
+  const [selectedCandidate, setSelectedCandidate] = useState<PublicCandidate | null>(null);
   const [animateBars, setAnimateBars] = useState(false);
 
   async function load() {
@@ -47,9 +47,10 @@ export function ResultsPage() {
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "candidates" },
         (payload) => {
+          const updated = pickPublicFields(payload.new as Record<string, unknown>);
           setCandidates((prev) =>
             [...prev.map((c) =>
-              c.id === (payload.new as Candidate).id ? { ...c, ...(payload.new as Candidate) } : c
+              c.id === updated.id ? { ...c, ...updated } : c
             )].sort((a, b) => getCandidateScore(b) - getCandidateScore(a))
           );
         }
@@ -191,8 +192,8 @@ export function ResultsPage() {
                   label: `#${i + 1}`,
                 };
                 // Progress bar relative to the leader
-                const barPct = maxVotes > 0 ? (c.total_votes / maxVotes) * 100 : 0;
-                const votePct = totalVotes > 0 ? (c.total_votes / totalVotes) * 100 : 0;
+                const barPct = maxVotes > 0 ? (getCandidateScore(c) / maxVotes) * 100 : 0;
+                const votePct = totalVotes > 0 ? (getCandidateScore(c) / totalVotes) * 100 : 0;
 
                 return (
                   <article
@@ -210,7 +211,7 @@ export function ResultsPage() {
                       gap: "0.875rem",
                       transition: "transform 0.15s ease",
                     }}
-                    aria-label={`Rank ${i + 1}: ${c.name} with ${formatNumber(c.total_votes)} votes`}
+                    aria-label={`Rank ${i + 1}: ${c.name} with ${formatNumber(getCandidateScore(c))} votes`}
                   >
                     {/* Top Row: Rank + Photo + Name + Vote Count */}
                     <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
@@ -323,7 +324,7 @@ export function ResultsPage() {
                             lineHeight: 1.1,
                           }}
                         >
-                          {formatNumber(c.total_votes)}
+                          {formatNumber(getCandidateScore(c))}
                         </div>
                         <div style={{ fontSize: "0.6875rem", color: "#6B6870", fontWeight: 600 }}>
                           {votePct.toFixed(1)}% of total
