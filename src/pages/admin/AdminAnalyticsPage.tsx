@@ -258,7 +258,7 @@ export function AdminAnalyticsPage() {
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem", fontSize: "0.75rem", color: "#6B6870", borderTop: "1px solid #FDF2F4", paddingTop: "0.5rem" }}>
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>Bonus Votes:</span>
+                  <span>Points Added:</span>
                   <span style={{ fontWeight: 700, color: "#059669" }}>+{formatNumber(totalBonusVotes)}</span>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
@@ -340,7 +340,7 @@ export function AdminAnalyticsPage() {
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ borderBottom: "1px solid #F0DCE2" }}>
-                    {["Rank", "Candidate", "Type", "Score", "Paid", "Bonus", "Penalty", "Price/Vote", "Paid Revenue"].map((h) => (
+                    {["Rank", "Candidate", "Type", "Score", "Paid", "Points Added", "Penalty", "Price/Vote", "Paid Revenue"].map((h) => (
                       <th key={h} style={{ padding: "0.75rem 1rem", textAlign: "left", fontSize: "0.8125rem", fontWeight: 600, color: "#6B6870", textTransform: "uppercase" }}>{h}</th>
                     ))}
                   </tr>

@@ -668,7 +668,7 @@ export function AdminCandidatesPage() {
                         <div style={{ display: "flex", gap: "0.375rem", alignItems: "center" }}>
                           <button
                             onClick={() => setAdjustmentModal({ open: true, type: "BONUS", candidate: c })}
-                            title="Give Bonus Votes"
+                            title="Give Points"
                             style={{
                               display: "inline-flex",
                               alignItems: "center",
@@ -685,7 +685,7 @@ export function AdminCandidatesPage() {
                             }}
                           >
                             <Gift size={13} />
-                            Bonus
+                            Give Points
                           </button>
                           <button
                             onClick={() => setAdjustmentModal({ open: true, type: "PENALTY", candidate: c })}

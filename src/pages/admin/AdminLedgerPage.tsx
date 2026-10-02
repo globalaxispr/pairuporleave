@@ -132,14 +132,16 @@ export function AdminLedgerPage() {
           icon: DollarSign,
         };
       case "BONUS":
+      case "ADMIN_ADD" as any:
         return {
-          label: "Bonus",
+          label: "Points Added",
           bg: "#FFF3F5",
           color: "#E51B3E",
           border: "#F0DCE2",
           icon: Gift,
         };
       case "PENALTY":
+      case "ADMIN_REMOVE" as any:
         return {
           label: "Penalty",
           bg: "#FEF2F2",
@@ -153,6 +155,14 @@ export function AdminLedgerPage() {
           bg: "#F5F3FF",
           color: "#7C3AED",
           border: "#DDD6FE",
+          icon: RefreshCw,
+        };
+      default:
+        return {
+          label: type ?? "Adjustment",
+          bg: "#F9FAFB",
+          color: "#4B5563",
+          border: "#E5E7EB",
           icon: RefreshCw,
         };
     }
@@ -193,7 +203,7 @@ export function AdminLedgerPage() {
             </span>
           </div>
           <p style={{ fontSize: "0.9375rem", color: "#6B6870", margin: "0.25rem 0 0" }}>
-            Permanent record of all Paid Votes, Bonus Votes, Penalties, and Score Corrections.
+            Permanent record of all Paid Votes, Points Added, Penalties, and Score Corrections.
           </p>
         </div>
 
@@ -253,7 +263,7 @@ export function AdminLedgerPage() {
           {[
             { key: "ALL", label: "All" },
             { key: "PAID_VOTE", label: "Paid Votes" },
-            { key: "BONUS", label: "Bonus" },
+            { key: "BONUS", label: "Points Added" },
             { key: "PENALTY", label: "Penalties" },
             { key: "CORRECTION", label: "Corrections" },
           ].map((t) => (
@@ -385,7 +395,7 @@ export function AdminLedgerPage() {
 
                       {/* Reason */}
                       <td style={{ padding: "0.875rem 1rem", fontSize: "0.875rem", color: "#24131A" }}>
-                        <div>{entry.reason}</div>
+                        <div>{entry.reason || <span style={{ color: "#9CA3AF", fontStyle: "italic", fontSize: "0.8125rem" }}>No reason specified</span>}</div>
                         {entry.reference_id && (
                           <span style={{ fontSize: "0.6875rem", color: "#6B6870", fontFamily: "monospace" }}>
                             Ref: {entry.reference_id}

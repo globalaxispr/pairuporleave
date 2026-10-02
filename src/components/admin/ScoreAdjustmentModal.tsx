@@ -44,10 +44,6 @@ export function ScoreAdjustmentModal({
       setError("Please enter a valid positive quantity.");
       return;
     }
-    if (!reason.trim() || reason.trim().length < 3) {
-      setError("Please enter a valid reason of at least 3 characters.");
-      return;
-    }
 
     setSubmitting(true);
     setError(null);
@@ -57,7 +53,7 @@ export function ScoreAdjustmentModal({
         candidateId: activeCandidate.id,
         type: type as ScoreAdjustmentType,
         quantity: numQty,
-        reason: reason.trim(),
+        reason: reason.trim() || null,
         adminEmail: user?.email || undefined,
       });
 
@@ -107,12 +103,12 @@ export function ScoreAdjustmentModal({
             </div>
             <div>
               <h2 style={{ fontSize: "1.25rem", fontWeight: 800, color: "#24131A", margin: 0 }}>
-                {isPenalty ? "Apply Penalty" : type === "CORRECTION" ? "Record Score Correction" : "Give Bonus Votes"}
+                {isPenalty ? "Apply Penalty" : type === "CORRECTION" ? "Record Score Correction" : "Give Points"}
               </h2>
               <p style={{ fontSize: "0.8125rem", color: "#6B6870", margin: "0.125rem 0 0" }}>
                 {isPenalty
                   ? "Deducts points from the candidate's current score without affecting paid votes or Stripe records."
-                  : "Awards extra points without requiring a Stripe payment."}
+                  : "Awards points to the candidate's score without requiring a Stripe payment."}
               </p>
             </div>
           </div>
@@ -167,7 +163,7 @@ export function ScoreAdjustmentModal({
               <p style={{ fontSize: "1.0625rem", fontWeight: 700, color: "#24131A", margin: "0 0 1rem" }}>
                 {isPenalty
                   ? `Apply a ${formatNumber(numQty)}-point penalty to ${candidateDisplayName}?`
-                  : `Give ${formatNumber(numQty)} bonus votes to ${candidateDisplayName}?`}
+                  : `Give ${formatNumber(numQty)} points to ${candidateDisplayName}?`}
               </p>
 
               {/* Score Transition */}
@@ -225,7 +221,7 @@ export function ScoreAdjustmentModal({
 
               {/* Reason summary */}
               <div style={{ fontSize: "0.8125rem", color: "#6B6870" }}>
-                <strong>Reason:</strong> {reason}
+                <strong>Reason:</strong> {reason.trim() || <span style={{ fontStyle: "italic", color: "#9CA3AF" }}>None (optional)</span>}
               </div>
             </div>
 
@@ -265,7 +261,7 @@ export function ScoreAdjustmentModal({
                 ) : (
                   <>
                     <CheckCircle2 size={16} />
-                    {isPenalty ? "Confirm Penalty" : "Confirm Bonus"}
+                    {isPenalty ? "Confirm Penalty" : "Confirm Points"}
                   </>
                 )}
               </button>
@@ -278,10 +274,6 @@ export function ScoreAdjustmentModal({
               e.preventDefault();
               if (!numQty || numQty <= 0) {
                 setError("Please enter a valid positive quantity.");
-                return;
-              }
-              if (!reason.trim() || reason.trim().length < 3) {
-                setError("Please enter a valid reason of at least 3 characters.");
                 return;
               }
               setError(null);
@@ -354,7 +346,7 @@ export function ScoreAdjustmentModal({
             {/* Quantity Input */}
             <div>
               <label htmlFor="adjust-qty" style={{ display: "block", fontWeight: 700, fontSize: "0.8125rem", color: "#24131A", marginBottom: "0.375rem" }}>
-                {isPenalty ? "Penalty Points to Deduct" : "Number of Bonus Votes"} *
+                {isPenalty ? "Penalty Points to Deduct" : "Points to Give"} *
               </label>
               <input
                 id="adjust-qty"
@@ -419,27 +411,26 @@ export function ScoreAdjustmentModal({
               </div>
             )}
 
-            {/* Reason Input */}
+            {/* Reason Input (Optional) */}
             <div>
               <label htmlFor="adjust-reason" style={{ display: "block", fontWeight: 700, fontSize: "0.8125rem", color: "#24131A", marginBottom: "0.375rem" }}>
-                Reason *
+                Reason <span style={{ fontWeight: 500, color: "#6B6870" }}>(Optional)</span>
               </label>
               <textarea
                 id="adjust-reason"
                 rows={2}
                 placeholder={
                   isPenalty
-                    ? "e.g., Contest rule violation - unapproved external promotion"
-                    : "e.g., Promotional Bonus - Weekly Community Spotlight Winner"
+                    ? "Optional note or reason (e.g. Contest rule violation)"
+                    : "Optional note or reason (e.g. Weekly Community Spotlight Winner)"
                 }
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 className="input-field"
-                required
                 style={{ fontSize: "0.875rem", resize: "vertical" }}
               />
               <span style={{ fontSize: "0.75rem", color: "#6B6870" }}>
-                This reason will be permanently recorded in the immutable score audit ledger.
+                Optional: If provided, this note will be recorded in the audit ledger.
               </span>
             </div>
 

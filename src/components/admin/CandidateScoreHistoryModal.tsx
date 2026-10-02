@@ -45,14 +45,16 @@ export function CandidateScoreHistoryModal({
           icon: DollarSign,
         };
       case "BONUS":
+      case "ADMIN_ADD" as any:
         return {
-          label: "Bonus Votes",
+          label: "Points Added",
           bg: "#FFF3F5",
           color: "#E51B3E",
           border: "#F0DCE2",
           icon: Gift,
         };
       case "PENALTY":
+      case "ADMIN_REMOVE" as any:
         return {
           label: "Penalty",
           bg: "#FEF2F2",
@@ -67,6 +69,14 @@ export function CandidateScoreHistoryModal({
           color: "#7C3AED",
           border: "#DDD6FE",
           icon: RefreshCw,
+        };
+      default:
+        return {
+          label: type ?? "Adjustment",
+          bg: "#F9FAFB",
+          color: "#4B5563",
+          border: "#E5E7EB",
+          icon: History,
         };
     }
   }
@@ -155,10 +165,10 @@ export function CandidateScoreHistoryModal({
               </div>
             </div>
 
-            {/* Bonus Votes */}
+            {/* Points Added */}
             <div style={{ background: "#ffffff", padding: "0.75rem", borderRadius: 12, border: "1px solid #F0DCE2" }}>
               <div style={{ fontSize: "0.6875rem", fontWeight: 700, color: "#059669", textTransform: "uppercase" }}>
-                Bonus Votes
+                Points Added
               </div>
               <div style={{ fontSize: "1.25rem", fontWeight: 800, color: "#059669", lineHeight: 1.2 }}>
                 +{formatNumber(bonusVotes)}
@@ -194,7 +204,7 @@ export function CandidateScoreHistoryModal({
             }}
           >
             <span>
-              Formula: {formatNumber(paidVotes)} (Paid) + {formatNumber(bonusVotes)} (Bonus) - {formatNumber(penaltyPoints)} (Penalty) = <span style={{ color: "#E51B3E" }}>{formatNumber(currentScore)} Points</span>
+              Formula: {formatNumber(paidVotes)} (Paid) + {formatNumber(bonusVotes)} (Points Added) - {formatNumber(penaltyPoints)} (Penalty) = <span style={{ color: "#E51B3E" }}>{formatNumber(currentScore)} Points</span>
             </span>
 
             {/* Action Buttons */}
@@ -217,7 +227,7 @@ export function CandidateScoreHistoryModal({
                 }}
               >
                 <PlusCircle size={14} />
-                Give Bonus
+                Give Points
               </button>
 
               <button

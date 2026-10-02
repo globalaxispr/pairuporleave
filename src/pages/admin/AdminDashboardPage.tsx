@@ -142,9 +142,9 @@ export function AdminDashboardPage() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "1.25rem" }}>
           <StatCard title="Total Candidates" value={formatNumber(stats.totalCandidates)} icon={Users} color="#7A0C2E" bg="#FFE1E8" />
           <StatCard title="Active Candidates" value={formatNumber(stats.activeCandidates)} icon={Activity} color="#16A34A" bg="#F0FDF4" subtitle={`${stats.totalCandidates - stats.activeCandidates} paused`} />
-          <StatCard title="Current Platform Score" value={formatNumber(stats.totalScore)} icon={Vote} color="#E51B3E" bg="#FFF3F5" subtitle={`Paid (${formatNumber(stats.paidVotes)}) + Bonus (${formatNumber(stats.bonusVotes)}) - Pen (${formatNumber(stats.penaltyPoints)})`} />
+          <StatCard title="Current Platform Score" value={formatNumber(stats.totalScore)} icon={Vote} color="#E51B3E" bg="#FFF3F5" subtitle={`Paid (${formatNumber(stats.paidVotes)}) + Points (${formatNumber(stats.bonusVotes)}) - Pen (${formatNumber(stats.penaltyPoints)})`} />
           <StatCard title="Total Paid Revenue" value={formatCurrency(stats.totalRevenueCents)} icon={DollarSign} color="#16A34A" bg="#F0FDF4" subtitle="From Stripe payments only" />
-          <StatCard title="Total Paid Votes" value={formatNumber(stats.paidVotes)} icon={TrendingUp} color="#7A0C2E" bg="#FFE1E8" subtitle={`+${formatNumber(stats.bonusVotes)} bonus votes`} />
+          <StatCard title="Total Paid Votes" value={formatNumber(stats.paidVotes)} icon={TrendingUp} color="#7A0C2E" bg="#FFE1E8" subtitle={`+${formatNumber(stats.bonusVotes)} points added`} />
           <StatCard title="Total Penalties Applied" value={`-${formatNumber(stats.penaltyPoints)}`} icon={BarChart3} color="#DC2626" bg="#FEF2F2" subtitle="Deducted from candidate scores" />
         </div>
       ) : null}

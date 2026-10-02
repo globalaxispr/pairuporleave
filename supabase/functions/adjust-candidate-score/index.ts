@@ -26,7 +26,7 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 
 interface AdjustRequestBody {
   candidate_id?: string;
-  adjustment_type?: "BONUS" | "PENALTY" | "CORRECTION";
+  adjustment_type?: "BONUS" | "PENALTY" | "CORRECTION" | "ADMIN_ADD" | "ADMIN_REMOVE";
   quantity?: number;
   reason?: string;
   reference_id?: string;
@@ -93,9 +93,9 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (!adjustment_type || !["BONUS", "PENALTY", "CORRECTION"].includes(adjustment_type)) {
+    if (!adjustment_type || !["BONUS", "PENALTY", "CORRECTION", "ADMIN_ADD", "ADMIN_REMOVE"].includes(adjustment_type)) {
       return new Response(
-        JSON.stringify({ error: "adjustment_type must be BONUS, PENALTY, or CORRECTION" }),
+        JSON.stringify({ error: "adjustment_type must be BONUS, PENALTY, CORRECTION, ADMIN_ADD, or ADMIN_REMOVE" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -128,19 +128,17 @@ Deno.serve(async (req) => {
       );
     }
 
-    if (!reason || typeof reason !== "string" || reason.trim().length < 3) {
-      return new Response(
-        JSON.stringify({ error: "A valid reason of at least 3 characters is required" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    // Reason is optional: if omitted or blank, pass null
+    const sanitizedReason = (typeof reason === "string" && reason.trim().length > 0)
+      ? reason.trim()
+      : null;
 
     // 4. Execute atomic stored procedure adjust_candidate_score
     const { data: rpcResult, error: rpcErr } = await supabaseAdmin.rpc("adjust_candidate_score", {
       p_candidate_id: candidate_id,
       p_type: adjustment_type,
       p_quantity: quantity,
-      p_reason: reason.trim(),
+      p_reason: sanitizedReason,
       p_admin_id: user.id,
       p_admin_email: adminRecord.email || user.email,
       p_reference_id: reference_id || null,

@@ -72,7 +72,7 @@ export const supabase = createClient(
 );
 
 export type CandidateType = "individual" | "couple";
-export type ScoreAdjustmentType = "PAID_VOTE" | "BONUS" | "PENALTY" | "CORRECTION";
+export type ScoreAdjustmentType = "PAID_VOTE" | "BONUS" | "PENALTY" | "CORRECTION" | "ADMIN_ADD" | "ADMIN_REMOVE";
 
 export function getVotePriceDollars(type?: CandidateType | string | null): number {
   return type === "couple" ? 2 : 1;
@@ -736,7 +736,7 @@ export async function adjustCandidateScore({
   candidateId: string;
   type: ScoreAdjustmentType;
   quantity: number;
-  reason: string;
+  reason?: string | null;
   referenceId?: string | null;
   adminEmail?: string;
 }): Promise<{
@@ -747,57 +747,208 @@ export async function adjustCandidateScore({
   cappedAtZero?: boolean;
   error?: string;
 }> {
-  // Input validation
+  // 1. Client-side input validation
   if (!candidateId) return { success: false, error: "Candidate ID is required." };
-  if (!reason || reason.trim().length < 3) {
-    return { success: false, error: "Reason must be at least 3 characters long." };
+  if (typeof quantity !== "number" || isNaN(quantity)) {
+    return { success: false, error: "Quantity must be a valid number." };
   }
-  if (type !== "CORRECTION" && (!quantity || quantity <= 0)) {
-    return { success: false, error: "Quantity must be a positive integer." };
+  if (!Number.isInteger(quantity)) {
+    return { success: false, error: "Quantity must be a whole number (no decimals)." };
   }
   if (quantity === 0) {
     return { success: false, error: "Quantity cannot be zero." };
   }
-
-  // Attempt backend invocation first if Supabase is active
-  try {
-    const { data: sessionData } = await supabase.auth.getSession();
-    const token = sessionData.session?.access_token;
-
-    if (token && supabaseUrl && !supabaseUrl.includes("placeholder")) {
-      const response = await fetch(`${supabaseUrl}/functions/v1/adjust-candidate-score`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          candidate_id: candidateId,
-          adjustment_type: type,
-          quantity,
-          reason: reason.trim(),
-          reference_id: referenceId ?? null,
-        }),
-      });
-
-      if (response.ok) {
-        const json = await response.json();
-        return {
-          success: true,
-          ledgerId: json.data?.ledger_id,
-          previousScore: json.data?.previous_score,
-          newScore: json.data?.new_score,
-          cappedAtZero: json.data?.capped_at_zero,
-        };
-      }
-    }
-  } catch (err) {
-    console.warn("Backend adjust-candidate-score call failed, checking demo fallback:", err);
+  if (type !== "CORRECTION" && quantity <= 0) {
+    return { success: false, error: "Quantity must be a positive integer." };
+  }
+  if (Math.abs(quantity) > 10000) {
+    return { success: false, error: "Quantity cannot exceed 10,000 points per adjustment." };
   }
 
-  // Demo Fallback: atomic local calculation and persistence
+  // Reason is optional
+  const cleanReason = (reason && reason.trim().length > 0) ? reason.trim() : null;
+
+  // Normalize type
+  const normType = type === "ADMIN_ADD" ? "BONUS" : type === "ADMIN_REMOVE" ? "PENALTY" : type;
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(candidateId);
+
+  // 2. Database path (when targeting real Supabase candidate UUID)
+  if (IS_SUPABASE_READY && isUuid) {
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      const callerId = sessionData.session?.user?.id;
+      const callerEmail = adminEmail || sessionData.session?.user?.email;
+
+      // Verify the candidate exists in the database
+      const { data: cand, error: candErr } = await supabase
+        .from("candidates")
+        .select("id, name, display_name, current_score, total_votes, paid_votes, bonus_votes, penalty_points")
+        .eq("id", candidateId)
+        .maybeSingle();
+
+      if (candErr) {
+        if (candErr.code === "42501" || candErr.message.includes("permission denied")) {
+          return { success: false, error: "Unauthorized: You must be signed in as an administrator." };
+        }
+      }
+
+      if (!cand && !candErr) {
+        return { success: false, error: "Candidate not found." };
+      }
+
+      // Attempt A: Invoke Edge Function if token is present
+      if (token && supabaseUrl && !supabaseUrl.includes("placeholder")) {
+        try {
+          const response = await fetch(`${supabaseUrl}/functions/v1/adjust-candidate-score`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              candidate_id: candidateId,
+              adjustment_type: normType,
+              quantity,
+              reason: cleanReason,
+              reference_id: referenceId ?? null,
+            }),
+          });
+
+          if (response.ok) {
+            const json = await response.json();
+            return {
+              success: true,
+              ledgerId: json.data?.ledger_id,
+              previousScore: json.data?.previous_score,
+              newScore: json.data?.new_score,
+              cappedAtZero: json.data?.capped_at_zero,
+            };
+          }
+
+          // If function returned an explicit business/auth error, report it directly
+          if (response.status !== 404) {
+            const errJson = await response.json().catch(() => null);
+            if (errJson?.error) {
+              return { success: false, error: errJson.error };
+            }
+          }
+        } catch {
+          // If Edge Function network fails or is 404, fall through to direct RPC
+        }
+      }
+
+      // Attempt B: Direct stored procedure invocation (RPC adjust_candidate_score)
+      const { data: rpcData, error: rpcErr } = await supabase.rpc("adjust_candidate_score", {
+        p_candidate_id: candidateId,
+        p_type: normType,
+        p_quantity: quantity,
+        p_reason: cleanReason,
+        p_admin_id: callerId ?? null,
+        p_admin_email: callerEmail ?? null,
+        p_reference_id: referenceId ?? null,
+      });
+
+      if (!rpcErr && rpcData && (rpcData as any).success) {
+        return {
+          success: true,
+          ledgerId: (rpcData as any).ledger_id,
+          previousScore: (rpcData as any).previous_score,
+          newScore: (rpcData as any).new_score,
+          cappedAtZero: (rpcData as any).capped_at_zero,
+        };
+      }
+
+      if (rpcErr) {
+        if (rpcErr.message.includes("Candidate not found")) {
+          return { success: false, error: "Candidate not found." };
+        }
+        if (rpcErr.message.includes("Forbidden") || rpcErr.code === "42501") {
+          return { success: false, error: "Forbidden: You are not authorized to adjust candidate scores." };
+        }
+      }
+
+      // Attempt C: Direct authenticated table transaction (fallback when RPC is ungranted/pending migration)
+      if (cand) {
+        const prevScore = getCandidateScore(cand);
+        let delta = quantity;
+        if (normType === "PENALTY") delta = -Math.abs(quantity);
+        else if (normType === "BONUS" || normType === "PAID_VOTE") delta = Math.abs(quantity);
+        const rawScore = prevScore + delta;
+        const newScore = Math.max(0, rawScore);
+        const cappedAtZero = rawScore < 0;
+
+        const updatePayload: Record<string, any> = {
+          current_score: newScore,
+          total_votes: newScore,
+          updated_at: new Date().toISOString(),
+        };
+        if (normType === "BONUS") {
+          updatePayload.bonus_votes = (cand.bonus_votes ?? 0) + Math.abs(quantity);
+        } else if (normType === "PENALTY") {
+          updatePayload.penalty_points = (cand.penalty_points ?? 0) + Math.abs(quantity);
+        }
+
+        const { error: updateErr } = await supabase
+          .from("candidates")
+          .update(updatePayload)
+          .eq("id", candidateId);
+
+        if (!updateErr) {
+          let ledgerId: string | undefined;
+          const { data: ledgerRes } = await supabase
+            .from("score_ledger")
+            .insert({
+              candidate_id: candidateId,
+              type: normType,
+              quantity: delta,
+              previous_score: prevScore,
+              new_score: newScore,
+              reason: cleanReason || "",
+              admin_user_id: callerId ?? null,
+              admin_email: callerEmail ?? null,
+              reference_id: referenceId ?? null,
+            })
+            .select("id")
+            .maybeSingle();
+
+          ledgerId = ledgerRes?.id;
+
+          return {
+            success: true,
+            ledgerId,
+            previousScore: prevScore,
+            newScore,
+            cappedAtZero,
+          };
+        }
+      }
+
+      return {
+        success: false,
+        error: "Unable to update candidate score. Please verify your administrative permissions.",
+      };
+    } catch (dbErr) {
+      return {
+        success: false,
+        error: dbErr instanceof Error ? dbErr.message : "Database error while updating score.",
+      };
+    }
+  }
+
+  // 3. Demo Fallback: local development and offline mock mode
   const candidates = getDemoCandidates();
-  const candIndex = candidates.findIndex((c) => c.id === candidateId);
+  let candIndex = candidates.findIndex((c) => c.id === candidateId || c.slug === candidateId);
+
+  // Check baseline demo candidates if not yet in localStorage
+  if (candIndex === -1) {
+    const baseIndex = DEMO_CANDIDATES.findIndex((c) => c.id === candidateId || c.slug === candidateId);
+    if (baseIndex !== -1) {
+      candidates.push({ ...DEMO_CANDIDATES[baseIndex] });
+      candIndex = candidates.length - 1;
+    }
+  }
+
   if (candIndex === -1) {
     return { success: false, error: "Candidate not found." };
   }
@@ -806,10 +957,9 @@ export async function adjustCandidateScore({
   const prevScore = getCandidateScore(cand);
 
   let delta = quantity;
-
-  if (type === "PENALTY") {
+  if (normType === "PENALTY") {
     delta = -Math.abs(quantity);
-  } else if (type === "BONUS" || type === "PAID_VOTE") {
+  } else if (normType === "BONUS" || normType === "PAID_VOTE") {
     delta = Math.abs(quantity);
   }
 
@@ -817,7 +967,6 @@ export async function adjustCandidateScore({
   const newScore = Math.max(0, rawScore);
   const cappedAtZero = rawScore < 0;
 
-  // Update the public score field only — demo mode never tracks breakdown
   const updatedCand: PublicCandidate = {
     ...cand,
     current_score: newScore,
@@ -827,17 +976,17 @@ export async function adjustCandidateScore({
   candidates[candIndex] = updatedCand;
   saveDemoCandidates(candidates);
 
-  // Append new ledger transaction
+  // Append new ledger transaction in demo storage
   const ledger = getDemoLedger();
   const ledgerId = `ledger-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
   const newEntry: ScoreLedgerEntry = {
     id: ledgerId,
     candidate_id: candidateId,
-    type,
+    type: normType,
     quantity: delta,
     previous_score: prevScore,
     new_score: newScore,
-    reason: reason.trim(),
+    reason: cleanReason || "",
     admin_user_id: "admin-current",
     admin_email: adminEmail || "admin@pairuporleave.com",
     reference_id: referenceId ?? null,
