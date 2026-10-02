@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
-import { HelmetProvider } from "react-helmet-async";
+import { Helmet, HelmetProvider } from "react-helmet-async";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
@@ -42,7 +42,12 @@ function PublicLayout({ children }: { children: React.ReactNode }) {
 // Branded 404 page
 function NotFoundPage() {
   return (
-    <main
+    <>
+      <Helmet>
+        <title>Page Not Found — Pair Up or Leave</title>
+        <meta name="robots" content="noindex, follow" />
+      </Helmet>
+      <main
       id="main-content"
       style={{
         minHeight: "72vh",
@@ -153,6 +158,7 @@ function NotFoundPage() {
         </Link>
       </div>
     </main>
+    </>
   );
 }
 

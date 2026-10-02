@@ -317,7 +317,7 @@ export function TermsPage() {
     <>
       <Helmet>
         <title>Terms of Service — Pair Up or Leave</title>
-        <meta name="description" content="Read the Pair Up or Leave Terms of Service. Covers voting rules, pricing ($1/vote individuals, $2/vote couples), ranking, bonus votes, penalties, prohibited conduct and more." />
+        <meta name="description" content="Read the Pair Up or Leave Terms of Service. Covers voting rules, pricing ($1/vote individuals, $2/vote couples), ranking, points, penalties, prohibited conduct and more." />
         <meta property="og:title" content="Terms of Service — Pair Up or Leave" />
         <meta property="og:description" content="Full Terms of Service for the Pair Up or Leave voting competition platform." />
         <meta property="og:url" content={`${SITE_URL}/terms`} />
@@ -409,13 +409,13 @@ export function TermsPage() {
               marginBottom: "0.75rem",
             }}
           >
-            Score = Paid Votes + Bonus Votes − Penalty Points
+            Score = Paid Votes + Points Added − Penalty Points
           </p>
           <p style={bodyText}>
-            The Platform administrators may award <strong>bonus votes</strong> to recognise
+            The Platform administrators may award points to recognise
             exceptional engagement or correct administrative errors. Administrators may also apply{" "}
-            <strong>penalty points</strong> in response to confirmed rule violations. All score
-            adjustments are logged in a public-facing ledger for transparency. A candidate's score
+            <strong>penalty points</strong> in response to confirmed rule violations. All
+            administrative adjustments are strictly audited to ensure competition integrity. A candidate's score
             cannot fall below zero.
           </p>
 

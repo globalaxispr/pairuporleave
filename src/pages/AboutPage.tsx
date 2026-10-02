@@ -18,6 +18,7 @@ export function AboutPage() {
           content="More Than a Vote. It's a Moment. Discover the story, community, and values behind Pair Up or Leave."
         />
         <meta property="og:url" content={`${SITE_URL}/about`} />
+        <link rel="canonical" href={`${SITE_URL}/about`} />
       </Helmet>
 
       <main id="main-content" style={{ minHeight: "85vh", background: "#FFFFFF" }}>

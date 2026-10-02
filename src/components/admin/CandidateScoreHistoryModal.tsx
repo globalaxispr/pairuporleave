@@ -204,7 +204,7 @@ export function CandidateScoreHistoryModal({
             }}
           >
             <span>
-              Formula: {formatNumber(paidVotes)} (Paid) + {formatNumber(bonusVotes)} (Points Added) - {formatNumber(penaltyPoints)} (Penalty) = <span style={{ color: "#E51B3E" }}>{formatNumber(currentScore)} Points</span>
+              Formula: {formatNumber(paidVotes)} (Paid) + {formatNumber(bonusVotes)} (Points Added) - {formatNumber(penaltyPoints)} (Points Removed) = <span style={{ color: "#E51B3E" }}>{formatNumber(currentScore)} Points</span>
             </span>
 
             {/* Action Buttons */}
@@ -248,7 +248,7 @@ export function CandidateScoreHistoryModal({
                 }}
               >
                 <MinusCircle size={14} />
-                Apply Penalty
+                Remove Points
               </button>
             </div>
           </div>

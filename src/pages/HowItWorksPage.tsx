@@ -36,6 +36,7 @@ export function HowItWorksPage() {
         <meta property="og:title" content="How It Works — Pair Up or Leave" />
         <meta property="og:description" content="Everything you need to know about voting on Pair Up or Leave. $1/vote for individuals, $2/vote for couples. No account required. Payments via Stripe." />
         <meta property="og:url" content={`${SITE_URL}/how-it-works`} />
+        <link rel="canonical" href={`${SITE_URL}/how-it-works`} />
       </Helmet>
 
       <main id="main-content" style={{ background: "#ffffff" }}>

@@ -60,8 +60,16 @@ export function AdminLedgerPage() {
 
   const filteredEntries = useMemo(() => {
     return entries.filter((entry) => {
-      if (typeFilter !== "ALL" && entry.type !== typeFilter) {
-        return false;
+      if (typeFilter !== "ALL") {
+        if (typeFilter === "ADMIN_ADD" && entry.type !== "ADMIN_ADD" && entry.type !== "BONUS") {
+          return false;
+        }
+        if (typeFilter === "ADMIN_REMOVE" && entry.type !== "ADMIN_REMOVE" && entry.type !== "PENALTY") {
+          return false;
+        }
+        if (typeFilter !== "ADMIN_ADD" && typeFilter !== "ADMIN_REMOVE" && entry.type !== typeFilter) {
+          return false;
+        }
       }
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
@@ -263,8 +271,8 @@ export function AdminLedgerPage() {
           {[
             { key: "ALL", label: "All" },
             { key: "PAID_VOTE", label: "Paid Votes" },
-            { key: "BONUS", label: "Points Added" },
-            { key: "PENALTY", label: "Penalties" },
+            { key: "ADMIN_ADD", label: "Points Added" },
+            { key: "ADMIN_REMOVE", label: "Penalties" },
             { key: "CORRECTION", label: "Corrections" },
           ].map((t) => (
             <button

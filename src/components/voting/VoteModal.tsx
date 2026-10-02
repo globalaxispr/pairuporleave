@@ -32,7 +32,7 @@ export function VoteModal({ candidate, onClose }: VoteModalProps) {
   }, [onClose]);
 
   const handleQuantityChange = useCallback((val: number) => {
-    const clamped = Math.max(1, Math.min(99999, Math.floor(val)));
+    const clamped = Math.max(1, Math.min(1000, Math.floor(val)));
     setQuantity(isNaN(clamped) ? 1 : clamped);
   }, []);
 
@@ -292,6 +292,7 @@ export function VoteModal({ candidate, onClose }: VoteModalProps) {
               value={quantity}
               onChange={(e) => handleQuantityChange(parseInt(e.target.value, 10))}
               min={1}
+              max={1000}
               style={{
                 flex: 1,
                 maxWidth: 140,

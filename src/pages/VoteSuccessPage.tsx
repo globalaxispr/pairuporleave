@@ -57,6 +57,7 @@ export function VoteSuccessPage() {
     <>
       <Helmet>
         <title>Thank You for Voting! — Pair Up or Leave</title>
+        <meta name="robots" content="noindex, follow" />
       </Helmet>
 
       <main style={{ minHeight: "80vh", background: "#FFF8FA", display: "flex", alignItems: "center", justifyContent: "center", padding: "2rem 1.5rem" }}>

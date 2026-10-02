@@ -389,9 +389,9 @@ export function AdminCandidatesPage() {
   // Score Adjustment & History Modals
   const [adjustmentModal, setAdjustmentModal] = useState<{
     open: boolean;
-    type: "BONUS" | "PENALTY";
+    type: "ADMIN_ADD" | "ADMIN_REMOVE";
     candidate: Candidate | null;
-  }>({ open: false, type: "BONUS", candidate: null });
+  }>({ open: false, type: "ADMIN_ADD", candidate: null });
 
   const [historyModal, setHistoryModal] = useState<{
     open: boolean;
@@ -667,7 +667,7 @@ export function AdminCandidatesPage() {
                       <td style={{ padding: "1rem" }}>
                         <div style={{ display: "flex", gap: "0.375rem", alignItems: "center" }}>
                           <button
-                            onClick={() => setAdjustmentModal({ open: true, type: "BONUS", candidate: c })}
+                            onClick={() => setAdjustmentModal({ open: true, type: "ADMIN_ADD", candidate: c })}
                             title="Give Points"
                             style={{
                               display: "inline-flex",
@@ -688,8 +688,8 @@ export function AdminCandidatesPage() {
                             Give Points
                           </button>
                           <button
-                            onClick={() => setAdjustmentModal({ open: true, type: "PENALTY", candidate: c })}
-                            title="Apply Penalty"
+                            onClick={() => setAdjustmentModal({ open: true, type: "ADMIN_REMOVE", candidate: c })}
+                            title="Remove Points"
                             style={{
                               display: "inline-flex",
                               alignItems: "center",
@@ -706,7 +706,7 @@ export function AdminCandidatesPage() {
                             }}
                           >
                             <ShieldAlert size={13} />
-                            Penalty
+                            Remove Points
                           </button>
                           <button
                             onClick={() => setHistoryModal({ open: true, candidate: c })}
@@ -751,7 +751,7 @@ export function AdminCandidatesPage() {
           type={adjustmentModal.type}
           candidate={adjustmentModal.candidate}
           allCandidates={candidates}
-          onClose={() => setAdjustmentModal({ open: false, type: "BONUS", candidate: null })}
+          onClose={() => setAdjustmentModal({ open: false, type: "ADMIN_ADD", candidate: null })}
           onSuccess={() => void load()}
         />
       )}
@@ -764,12 +764,12 @@ export function AdminCandidatesPage() {
           onGiveBonus={() => {
             const cand = historyModal.candidate!;
             setHistoryModal({ open: false, candidate: null });
-            setAdjustmentModal({ open: true, type: "BONUS", candidate: cand });
+            setAdjustmentModal({ open: true, type: "ADMIN_ADD", candidate: cand });
           }}
           onApplyPenalty={() => {
             const cand = historyModal.candidate!;
             setHistoryModal({ open: false, candidate: null });
-            setAdjustmentModal({ open: true, type: "PENALTY", candidate: cand });
+            setAdjustmentModal({ open: true, type: "ADMIN_REMOVE", candidate: cand });
           }}
         />
       )}

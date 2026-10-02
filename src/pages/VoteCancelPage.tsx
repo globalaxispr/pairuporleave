@@ -9,6 +9,7 @@ export function VoteCancelPage() {
     <>
       <Helmet>
         <title>Payment Cancelled — Pair Up or Leave</title>
+        <meta name="robots" content="noindex, follow" />
       </Helmet>
 
       <main

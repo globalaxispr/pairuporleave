@@ -5,7 +5,7 @@ import { formatNumber } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface ScoreAdjustmentModalProps {
-  type: "BONUS" | "PENALTY" | "CORRECTION";
+  type: "ADMIN_ADD" | "ADMIN_REMOVE" | "BONUS" | "PENALTY" | "CORRECTION";
   candidate: Candidate;
   allCandidates?: Candidate[];
   onClose: () => void;
@@ -31,7 +31,7 @@ export function ScoreAdjustmentModal({
   const currentScore = getCandidateScore(activeCandidate);
 
   const numQty = typeof quantity === "number" ? quantity : 0;
-  const isPenalty = type === "PENALTY";
+  const isPenalty = type === "PENALTY" || type === "ADMIN_REMOVE";
   const delta = isPenalty ? -numQty : numQty;
   const rawScore = currentScore + delta;
   const newScore = Math.max(0, rawScore);
@@ -48,10 +48,15 @@ export function ScoreAdjustmentModal({
     setSubmitting(true);
     setError(null);
 
+    const targetType: ScoreAdjustmentType =
+      type === "BONUS" || type === "ADMIN_ADD" ? "ADMIN_ADD" :
+      type === "PENALTY" || type === "ADMIN_REMOVE" ? "ADMIN_REMOVE" :
+      type;
+
     try {
       const res = await adjustCandidateScore({
         candidateId: activeCandidate.id,
-        type: type as ScoreAdjustmentType,
+        type: targetType,
         quantity: numQty,
         reason: reason.trim() || null,
         adminEmail: user?.email || undefined,
@@ -103,12 +108,12 @@ export function ScoreAdjustmentModal({
             </div>
             <div>
               <h2 style={{ fontSize: "1.25rem", fontWeight: 800, color: "#24131A", margin: 0 }}>
-                {isPenalty ? "Apply Penalty" : type === "CORRECTION" ? "Record Score Correction" : "Give Points"}
+                {isPenalty ? "Remove Points" : type === "CORRECTION" ? "Record Score Correction" : "Give Points"}
               </h2>
               <p style={{ fontSize: "0.8125rem", color: "#6B6870", margin: "0.125rem 0 0" }}>
                 {isPenalty
-                  ? "Deducts points from the candidate's current score without affecting paid votes or Stripe records."
-                  : "Awards points to the candidate's score without requiring a Stripe payment."}
+                  ? "Deducts points from the candidate's competition score only. It does not refund or modify any payment."
+                  : "Awards points to the candidate's competition score without requiring a Stripe payment."}
               </p>
             </div>
           </div>
@@ -162,9 +167,28 @@ export function ScoreAdjustmentModal({
               </div>
               <p style={{ fontSize: "1.0625rem", fontWeight: 700, color: "#24131A", margin: "0 0 1rem" }}>
                 {isPenalty
-                  ? `Apply a ${formatNumber(numQty)}-point penalty to ${candidateDisplayName}?`
+                  ? `Remove ${formatNumber(numQty)} points from ${candidateDisplayName}?`
                   : `Give ${formatNumber(numQty)} points to ${candidateDisplayName}?`}
               </p>
+
+              {/* Explicit Mandatory Business Rule Notice */}
+              {isPenalty && (
+                <div
+                  style={{
+                    background: "#FEF2F2",
+                    border: "1px solid #FECACA",
+                    borderRadius: 10,
+                    padding: "0.75rem 1rem",
+                    marginBottom: "1rem",
+                    fontSize: "0.8125rem",
+                    color: "#991B1B",
+                    fontWeight: 600,
+                    lineHeight: 1.4,
+                  }}
+                >
+                  This action changes the candidate's competition score only. It does not refund or modify any payment.
+                </div>
+              )}
 
               {/* Score Transition */}
               <div
@@ -214,7 +238,7 @@ export function ScoreAdjustmentModal({
                 >
                   <AlertTriangle size={18} color="#D97706" style={{ flexShrink: 0, marginTop: 2 }} />
                   <div style={{ fontSize: "0.8125rem", color: "#92400E", lineHeight: 1.4 }}>
-                    <strong>Score Capped at Zero:</strong> The requested penalty (-{numQty}) exceeds the current score ({currentScore}). The score will become <strong>0</strong>. The full penalty will remain recorded in the immutable audit ledger.
+                    <strong>Score Capped at Zero:</strong> The requested point deduction (-{numQty}) exceeds the current score ({currentScore}). The score will become <strong>0</strong>. The full adjustment will remain recorded in the immutable audit ledger.
                   </div>
                 </div>
               )}
@@ -261,7 +285,7 @@ export function ScoreAdjustmentModal({
                 ) : (
                   <>
                     <CheckCircle2 size={16} />
-                    {isPenalty ? "Confirm Penalty" : "Confirm Points"}
+                    {isPenalty ? "Confirm Remove Points" : "Confirm Points"}
                   </>
                 )}
               </button>
@@ -339,14 +363,14 @@ export function ScoreAdjustmentModal({
 
               <div style={{ textAlign: "right", fontSize: "0.75rem", color: "#6B6870" }}>
                 <div>Paid: <strong>{formatNumber(activeCandidate.paid_votes ?? activeCandidate.total_votes ?? 0)}</strong></div>
-                <div>Bonus: <strong>+{formatNumber(activeCandidate.bonus_votes ?? 0)}</strong> | Penalty: <strong>-{formatNumber(activeCandidate.penalty_points ?? 0)}</strong></div>
+                <div>Added: <strong>+{formatNumber(activeCandidate.bonus_votes ?? 0)}</strong> | Removed: <strong>-{formatNumber(activeCandidate.penalty_points ?? 0)}</strong></div>
               </div>
             </div>
 
             {/* Quantity Input */}
             <div>
               <label htmlFor="adjust-qty" style={{ display: "block", fontWeight: 700, fontSize: "0.8125rem", color: "#24131A", marginBottom: "0.375rem" }}>
-                {isPenalty ? "Penalty Points to Deduct" : "Points to Give"} *
+                {isPenalty ? "Points to Remove" : "Points to Give"} *
               </label>
               <input
                 id="adjust-qty"

@@ -151,10 +151,14 @@ export function pickPublicFields(raw: Record<string, unknown>): PublicCandidate 
   };
 }
 
-export function getCandidateScore(c?: Partial<PublicCandidate> | null): number {
+export function getCandidateScore(c?: (Partial<PublicCandidate> & Partial<Candidate>) | null): number {
   if (!c) return 0;
-  if (typeof c.current_score === "number") return c.current_score;
-  return 0;
+  if (typeof c.current_score === "number") return Math.max(0, c.current_score);
+  if (typeof c.total_votes === "number") return Math.max(0, c.total_votes);
+  const paid = c.paid_votes ?? 0;
+  const added = c.bonus_votes ?? 0;
+  const removed = c.penalty_points ?? 0;
+  return Math.max(0, paid + added - removed);
 }
 
 export type Database = {
@@ -768,8 +772,11 @@ export async function adjustCandidateScore({
   // Reason is optional
   const cleanReason = (reason && reason.trim().length > 0) ? reason.trim() : null;
 
-  // Normalize type
-  const normType = type === "ADMIN_ADD" ? "BONUS" : type === "ADMIN_REMOVE" ? "PENALTY" : type;
+  // Canonical ledger types: new administrative additions use ADMIN_ADD, deductions use ADMIN_REMOVE
+  const targetType =
+    (type === "BONUS" || type === "ADMIN_ADD") ? "ADMIN_ADD" :
+    (type === "PENALTY" || type === "ADMIN_REMOVE") ? "ADMIN_REMOVE" :
+    type;
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(candidateId);
 
   // 2. Database path (when targeting real Supabase candidate UUID)
@@ -808,7 +815,7 @@ export async function adjustCandidateScore({
             },
             body: JSON.stringify({
               candidate_id: candidateId,
-              adjustment_type: normType,
+              adjustment_type: targetType,
               quantity,
               reason: cleanReason,
               reference_id: referenceId ?? null,
@@ -841,7 +848,7 @@ export async function adjustCandidateScore({
       // Attempt B: Direct stored procedure invocation (RPC adjust_candidate_score)
       const { data: rpcData, error: rpcErr } = await supabase.rpc("adjust_candidate_score", {
         p_candidate_id: candidateId,
-        p_type: normType,
+        p_type: targetType,
         p_quantity: quantity,
         p_reason: cleanReason,
         p_admin_id: callerId ?? null,
@@ -872,8 +879,8 @@ export async function adjustCandidateScore({
       if (cand) {
         const prevScore = getCandidateScore(cand);
         let delta = quantity;
-        if (normType === "PENALTY") delta = -Math.abs(quantity);
-        else if (normType === "BONUS" || normType === "PAID_VOTE") delta = Math.abs(quantity);
+        if (targetType === "ADMIN_REMOVE") delta = -Math.abs(quantity);
+        else if (targetType === "ADMIN_ADD" || targetType === "PAID_VOTE") delta = Math.abs(quantity);
         const rawScore = prevScore + delta;
         const newScore = Math.max(0, rawScore);
         const cappedAtZero = rawScore < 0;
@@ -883,9 +890,9 @@ export async function adjustCandidateScore({
           total_votes: newScore,
           updated_at: new Date().toISOString(),
         };
-        if (normType === "BONUS") {
+        if (targetType === "ADMIN_ADD") {
           updatePayload.bonus_votes = (cand.bonus_votes ?? 0) + Math.abs(quantity);
-        } else if (normType === "PENALTY") {
+        } else if (targetType === "ADMIN_REMOVE") {
           updatePayload.penalty_points = (cand.penalty_points ?? 0) + Math.abs(quantity);
         }
 
@@ -900,7 +907,7 @@ export async function adjustCandidateScore({
             .from("score_ledger")
             .insert({
               candidate_id: candidateId,
-              type: normType,
+              type: targetType,
               quantity: delta,
               previous_score: prevScore,
               new_score: newScore,
@@ -957,9 +964,9 @@ export async function adjustCandidateScore({
   const prevScore = getCandidateScore(cand);
 
   let delta = quantity;
-  if (normType === "PENALTY") {
+  if (targetType === "ADMIN_REMOVE") {
     delta = -Math.abs(quantity);
-  } else if (normType === "BONUS" || normType === "PAID_VOTE") {
+  } else if (targetType === "ADMIN_ADD" || targetType === "PAID_VOTE") {
     delta = Math.abs(quantity);
   }
 
@@ -982,7 +989,7 @@ export async function adjustCandidateScore({
   const newEntry: ScoreLedgerEntry = {
     id: ledgerId,
     candidate_id: candidateId,
-    type: normType,
+    type: targetType,
     quantity: delta,
     previous_score: prevScore,
     new_score: newScore,
