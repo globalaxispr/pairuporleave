@@ -35,6 +35,10 @@ export function Footer() {
                 <img
                   src="/logo@2x.png"
                   alt="Pair Up or Leave"
+                  width={174}
+                  height={44}
+                  loading="lazy"
+                  decoding="async"
                   style={{
                     height: 44,
                     width: "auto",

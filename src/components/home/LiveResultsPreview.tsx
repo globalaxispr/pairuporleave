@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { TrendingUp, ArrowRight } from "lucide-react";
 import { supabase, fetchCandidatesSafe, getCandidateScore, pickPublicFields, type PublicCandidate } from "@/lib/supabase";
@@ -179,6 +179,7 @@ export function LiveResultsPreview() {
                             className="progress-bar-fill"
                             style={{ width: `${pct}%` }}
                             role="progressbar"
+                            aria-label={`Vote percentage for ${c.name}: ${pct}%`}
                             aria-valuenow={pct}
                             aria-valuemin={0}
                             aria-valuemax={100}

@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Vote, TrendingUp, User, Eye } from "lucide-react";
 import { getVotePriceDollars, type PublicCandidate, getCandidateScore } from "@/lib/supabase";
@@ -179,7 +179,10 @@ export function CandidateCard({ candidate, rank }: CandidateCardProps) {
                   <img
                     src={candidate.person_one_photo_url || candidate.photo_url!}
                     alt={candidate.person_one_name ? `Portrait of ${candidate.person_one_name}` : `Portrait of ${candidate.name} (person 1)`}
+                    width={200}
+                    height={250}
                     loading="lazy"
+                    decoding="async"
                     onError={() => setImgError(true)}
                     className="candidate-photo-img"
                     style={{
@@ -242,7 +245,10 @@ export function CandidateCard({ candidate, rank }: CandidateCardProps) {
                   <img
                     src={candidate.person_two_photo_url}
                     alt={candidate.person_two_name ? `Portrait of ${candidate.person_two_name}` : `Portrait of ${candidate.name} (person 2)`}
+                    width={200}
+                    height={250}
                     loading="lazy"
+                    decoding="async"
                     onError={() => setImgErrorTwo(true)}
                     className="candidate-photo-img"
                     style={{
@@ -296,7 +302,10 @@ export function CandidateCard({ candidate, rank }: CandidateCardProps) {
             <img
               src={candidate.photo_url}
               alt={`Portrait of ${candidate.name}`}
+              width={400}
+              height={250}
               loading="lazy"
+              decoding="async"
               onError={() => setImgError(true)}
               className="candidate-photo-img"
               style={{

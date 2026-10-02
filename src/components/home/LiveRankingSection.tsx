@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Trophy, TrendingUp, Vote, ArrowRight } from "lucide-react";
 import { supabase, fetchCandidatesSafe, getCandidateScore, pickPublicFields, type PublicCandidate } from "@/lib/supabase";
@@ -218,11 +218,11 @@ export function LiveRankingSection() {
                       >
                         {top1.candidate_type === "couple" && top1.person_one_photo_url && top1.person_two_photo_url ? (
                           <div style={{ display: "flex", width: "100%", height: "100%" }}>
-                            <img src={top1.person_one_photo_url} alt="Partner 1" style={{ width: "50%", height: "100%", objectFit: "cover" }} />
-                            <img src={top1.person_two_photo_url} alt="Partner 2" style={{ width: "50%", height: "100%", objectFit: "cover", borderLeft: "1px solid #fff" }} />
+                            <img src={top1.person_one_photo_url} alt="Partner 1" width={40} height={80} loading="lazy" decoding="async" style={{ width: "50%", height: "100%", objectFit: "cover" }} />
+                            <img src={top1.person_two_photo_url} alt="Partner 2" width={40} height={80} loading="lazy" decoding="async" style={{ width: "50%", height: "100%", objectFit: "cover", borderLeft: "1px solid #fff" }} />
                           </div>
                         ) : top1.photo_url ? (
-                          <img src={top1.photo_url} alt={top1.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          <img src={top1.photo_url} alt={top1.name} width={80} height={80} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                         ) : (
                           getInitials(top1.name)
                         )}
@@ -334,23 +334,23 @@ export function LiveRankingSection() {
                       >
                         {top2.candidate_type === "couple" && top2.person_one_photo_url && top2.person_two_photo_url ? (
                           <div style={{ display: "flex", width: "100%", height: "100%" }}>
-                            <img src={top2.person_one_photo_url} alt="Partner 1" style={{ width: "50%", height: "100%", objectFit: "cover" }} />
-                            <img src={top2.person_two_photo_url} alt="Partner 2" style={{ width: "50%", height: "100%", objectFit: "cover", borderLeft: "1px solid #fff" }} />
+                            <img src={top2.person_one_photo_url} alt="Partner 1" width={28} height={56} loading="lazy" decoding="async" style={{ width: "50%", height: "100%", objectFit: "cover" }} />
+                            <img src={top2.person_two_photo_url} alt="Partner 2" width={28} height={56} loading="lazy" decoding="async" style={{ width: "50%", height: "100%", objectFit: "cover", borderLeft: "1px solid #fff" }} />
                           </div>
                         ) : top2.photo_url ? (
-                          <img src={top2.photo_url} alt={top2.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          <img src={top2.photo_url} alt={top2.name} width={56} height={56} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                         ) : (
                           getInitials(top2.name)
                         )}
                       </div>
 
-                      <div
+                      <h3
                         style={{
                           fontWeight: 800,
                           fontSize: "0.875rem",
                           color: "#24131A",
                           lineHeight: 1.2,
-                          marginBottom: "0.25rem",
+                          margin: "0 0 0.25rem",
                           whiteSpace: "nowrap",
                           overflow: "hidden",
                           textOverflow: "ellipsis",
@@ -358,7 +358,7 @@ export function LiveRankingSection() {
                         }}
                       >
                         {top2.candidate_type === "couple" ? (top2.display_name || top2.name) : top2.name}
-                      </div>
+                      </h3>
 
                       <div style={{ fontSize: "0.9375rem", fontWeight: 800, color: "#7A0C2E", marginBottom: "0.75rem" }}>
                         {formatNumber(getCandidateScore(top2))} <span style={{ fontSize: "0.6875rem", color: "#6B6870", fontWeight: 600 }}>votes</span>
@@ -423,23 +423,23 @@ export function LiveRankingSection() {
                       >
                         {top3.candidate_type === "couple" && top3.person_one_photo_url && top3.person_two_photo_url ? (
                           <div style={{ display: "flex", width: "100%", height: "100%" }}>
-                            <img src={top3.person_one_photo_url} alt="Partner 1" style={{ width: "50%", height: "100%", objectFit: "cover" }} />
-                            <img src={top3.person_two_photo_url} alt="Partner 2" style={{ width: "50%", height: "100%", objectFit: "cover", borderLeft: "1px solid #fff" }} />
+                            <img src={top3.person_one_photo_url} alt="Partner 1" width={28} height={56} loading="lazy" decoding="async" style={{ width: "50%", height: "100%", objectFit: "cover" }} />
+                            <img src={top3.person_two_photo_url} alt="Partner 2" width={28} height={56} loading="lazy" decoding="async" style={{ width: "50%", height: "100%", objectFit: "cover", borderLeft: "1px solid #fff" }} />
                           </div>
                         ) : top3.photo_url ? (
-                          <img src={top3.photo_url} alt={top3.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          <img src={top3.photo_url} alt={top3.name} width={56} height={56} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                         ) : (
                           getInitials(top3.name)
                         )}
                       </div>
 
-                      <div
+                      <h3
                         style={{
                           fontWeight: 800,
                           fontSize: "0.875rem",
                           color: "#24131A",
                           lineHeight: 1.2,
-                          marginBottom: "0.25rem",
+                          margin: "0 0 0.25rem",
                           whiteSpace: "nowrap",
                           overflow: "hidden",
                           textOverflow: "ellipsis",
@@ -447,7 +447,7 @@ export function LiveRankingSection() {
                         }}
                       >
                         {top3.candidate_type === "couple" ? (top3.display_name || top3.name) : top3.name}
-                      </div>
+                      </h3>
 
                       <div style={{ fontSize: "0.9375rem", fontWeight: 800, color: "#7A0C2E", marginBottom: "0.75rem" }}>
                         {formatNumber(getCandidateScore(top3))} <span style={{ fontSize: "0.6875rem", color: "#6B6870", fontWeight: 600 }}>votes</span>
@@ -515,11 +515,11 @@ export function LiveRankingSection() {
                     >
                       {top2.candidate_type === "couple" && top2.person_one_photo_url && top2.person_two_photo_url ? (
                         <div style={{ display: "flex", width: "100%", height: "100%" }}>
-                          <img src={top2.person_one_photo_url} alt="Partner 1" style={{ width: "50%", height: "100%", objectFit: "cover" }} />
-                          <img src={top2.person_two_photo_url} alt="Partner 2" style={{ width: "50%", height: "100%", objectFit: "cover", borderLeft: "1px solid #fff" }} />
+                          <img src={top2.person_one_photo_url} alt="Partner 1" width={36} height={72} loading="lazy" decoding="async" style={{ width: "50%", height: "100%", objectFit: "cover" }} />
+                          <img src={top2.person_two_photo_url} alt="Partner 2" width={36} height={72} loading="lazy" decoding="async" style={{ width: "50%", height: "100%", objectFit: "cover", borderLeft: "1px solid #fff" }} />
                         </div>
                       ) : top2.photo_url ? (
-                        <img src={top2.photo_url} alt={top2.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        <img src={top2.photo_url} alt={top2.name} width={72} height={72} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                       ) : (
                         getInitials(top2.name)
                       )}
@@ -598,11 +598,11 @@ export function LiveRankingSection() {
                     >
                       {top1.candidate_type === "couple" && top1.person_one_photo_url && top1.person_two_photo_url ? (
                         <div style={{ display: "flex", width: "100%", height: "100%" }}>
-                          <img src={top1.person_one_photo_url} alt="Partner 1" style={{ width: "50%", height: "100%", objectFit: "cover" }} />
-                          <img src={top1.person_two_photo_url} alt="Partner 2" style={{ width: "50%", height: "100%", objectFit: "cover", borderLeft: "1px solid #fff" }} />
+                          <img src={top1.person_one_photo_url} alt="Partner 1" width={48} height={96} loading="lazy" decoding="async" style={{ width: "50%", height: "100%", objectFit: "cover" }} />
+                          <img src={top1.person_two_photo_url} alt="Partner 2" width={48} height={96} loading="lazy" decoding="async" style={{ width: "50%", height: "100%", objectFit: "cover", borderLeft: "1px solid #fff" }} />
                         </div>
                       ) : top1.photo_url ? (
-                        <img src={top1.photo_url} alt={top1.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        <img src={top1.photo_url} alt={top1.name} width={96} height={96} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                       ) : (
                         getInitials(top1.name)
                       )}
@@ -679,11 +679,11 @@ export function LiveRankingSection() {
                     >
                       {top3.candidate_type === "couple" && top3.person_one_photo_url && top3.person_two_photo_url ? (
                         <div style={{ display: "flex", width: "100%", height: "100%" }}>
-                          <img src={top3.person_one_photo_url} alt="Partner 1" style={{ width: "50%", height: "100%", objectFit: "cover" }} />
-                          <img src={top3.person_two_photo_url} alt="Partner 2" style={{ width: "50%", height: "100%", objectFit: "cover", borderLeft: "1px solid #fff" }} />
+                          <img src={top3.person_one_photo_url} alt="Partner 1" width={36} height={72} loading="lazy" decoding="async" style={{ width: "50%", height: "100%", objectFit: "cover" }} />
+                          <img src={top3.person_two_photo_url} alt="Partner 2" width={36} height={72} loading="lazy" decoding="async" style={{ width: "50%", height: "100%", objectFit: "cover", borderLeft: "1px solid #fff" }} />
                         </div>
                       ) : top3.photo_url ? (
-                        <img src={top3.photo_url} alt={top3.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        <img src={top3.photo_url} alt={top3.name} width={72} height={72} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                       ) : (
                         getInitials(top3.name)
                       )}

@@ -255,13 +255,17 @@ export function ResultsPage() {
                       >
                         {c.candidate_type === "couple" && c.person_one_photo_url && c.person_two_photo_url ? (
                           <div style={{ display: "flex", width: "100%", height: "100%" }}>
-                            <img src={c.person_one_photo_url} alt="Partner 1" style={{ width: "50%", height: "100%", objectFit: "cover" }} />
-                            <img src={c.person_two_photo_url} alt="Partner 2" style={{ width: "50%", height: "100%", objectFit: "cover", borderLeft: "1px solid #fff" }} />
+                            <img src={c.person_one_photo_url} alt="Partner 1" width={24} height={48} loading="lazy" decoding="async" style={{ width: "50%", height: "100%", objectFit: "cover" }} />
+                            <img src={c.person_two_photo_url} alt="Partner 2" width={24} height={48} loading="lazy" decoding="async" style={{ width: "50%", height: "100%", objectFit: "cover", borderLeft: "1px solid #fff" }} />
                           </div>
                         ) : c.photo_url ? (
                           <img
                             src={c.photo_url}
                             alt={c.name}
+                            width={48}
+                            height={48}
+                            loading="lazy"
+                            decoding="async"
                             style={{ width: "100%", height: "100%", objectFit: "cover" }}
                           />
                         ) : (
@@ -355,6 +359,7 @@ export function ResultsPage() {
                             transition: "width 0.75s cubic-bezier(0.16, 1, 0.3, 1)",
                           }}
                           role="progressbar"
+                          aria-label={`Vote percentage for ${c.name}: ${Math.round(barPct)}%`}
                           aria-valuenow={Math.round(barPct)}
                           aria-valuemin={0}
                           aria-valuemax={100}

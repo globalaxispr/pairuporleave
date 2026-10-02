@@ -139,8 +139,11 @@ export function AboutPage() {
                   <img
                     src="https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=1000&q=80"
                     alt="Event crowd cheering and celebrating together"
-                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                    width={800}
+                    height={600}
                     loading="lazy"
+                    decoding="async"
+                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
                   />
                   <div
                     style={{
@@ -287,8 +290,11 @@ export function AboutPage() {
                 <img
                   src="https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&w=1000&q=80"
                   alt="Friends celebrating together at the event"
-                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                  width={640}
+                  height={400}
                   loading="lazy"
+                  decoding="async"
+                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
                 />
               </div>
 
@@ -307,8 +313,11 @@ export function AboutPage() {
                 <img
                   src="https://images.unsplash.com/photo-1543807535-eceef0bc6599?auto=format&fit=crop&w=800&q=80"
                   alt="Couple sharing a genuine connected moment"
-                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                  width={480}
+                  height={300}
                   loading="lazy"
+                  decoding="async"
+                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
                 />
               </div>
 
@@ -327,8 +336,11 @@ export function AboutPage() {
                 <img
                   src="https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?auto=format&fit=crop&w=800&q=80"
                   alt="Audience cheering during live vote announcement"
-                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                  width={480}
+                  height={300}
                   loading="lazy"
+                  decoding="async"
+                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
                 />
               </div>
 
@@ -347,8 +359,11 @@ export function AboutPage() {
                 <img
                   src="https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=1000&q=80"
                   alt="Atmospheric stage celebration and energy"
-                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                  width={640}
+                  height={400}
                   loading="lazy"
+                  decoding="async"
+                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
                 />
               </div>
             </div>

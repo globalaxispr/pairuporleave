@@ -124,6 +124,10 @@ export function CandidateProfilePage() {
                       <img
                         src={candidate.person_one_photo_url || candidate.photo_url!}
                         alt={candidate.person_one_name ? `Portrait of ${candidate.person_one_name}` : `Portrait of ${candidate.name} (person 1)`}
+                        width={300}
+                        height={400}
+                        loading="eager"
+                        decoding="async"
                         onError={() => setImgError(true)}
                         style={{ width: "100%", height: "100%", objectFit: "cover" }}
                       />
@@ -157,6 +161,10 @@ export function CandidateProfilePage() {
                       <img
                         src={candidate.person_two_photo_url}
                         alt={candidate.person_two_name ? `Portrait of ${candidate.person_two_name}` : `Portrait of ${candidate.name} (person 2)`}
+                        width={300}
+                        height={400}
+                        loading="eager"
+                        decoding="async"
                         onError={() => setImgErrorTwo(true)}
                         style={{ width: "100%", height: "100%", objectFit: "cover" }}
                       />
@@ -191,6 +199,10 @@ export function CandidateProfilePage() {
                     <img
                       src={candidate.photo_url}
                       alt={`Photo of ${candidate.name}`}
+                      width={600}
+                      height={800}
+                      loading="eager"
+                      decoding="async"
                       onError={() => setImgError(true)}
                       style={{ width: "100%", height: "100%", objectFit: "cover" }}
                     />

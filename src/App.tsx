@@ -1,31 +1,66 @@
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
 import { Helmet, HelmetProvider } from "react-helmet-async";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { ProtectedRoute } from "@/components/admin/ProtectedRoute";
-
-// Public pages
-import { HomePage } from "@/pages/HomePage";
-import { CandidatesPage } from "@/pages/CandidatesPage";
-import { CandidateProfilePage } from "@/pages/CandidateProfilePage";
-import { ResultsPage } from "@/pages/ResultsPage";
-import { HowItWorksPage } from "@/pages/HowItWorksPage";
-import { AboutPage } from "@/pages/AboutPage";
-import { VoteSuccessPage } from "@/pages/VoteSuccessPage";
-import { VoteCancelPage } from "@/pages/VoteCancelPage";
-import { RankingPage } from "@/pages/RankingPage";
 import { MobileStickyVote } from "@/components/layout/MobileStickyVote";
 import { ScrollToTop } from "@/components/layout/ScrollToTop";
-import { ContactPage, PrivacyPage, TermsPage } from "@/pages/InfoPages";
 
-// Admin pages
-import { AdminLoginPage } from "@/pages/admin/AdminLoginPage";
-import { AdminDashboardPage } from "@/pages/admin/AdminDashboardPage";
-import { AdminCandidatesPage } from "@/pages/admin/AdminCandidatesPage";
-import { AdminPaymentsPage } from "@/pages/admin/AdminPaymentsPage";
-import { AdminAnalyticsPage } from "@/pages/admin/AdminAnalyticsPage";
-import { AdminLedgerPage } from "@/pages/admin/AdminLedgerPage";
+// Critical landing page: statically imported for immediate Hero render
+import { HomePage } from "@/pages/HomePage";
+
+// Code-split secondary public pages (lazy loaded on navigation)
+const CandidatesPage = lazy(() => import("@/pages/CandidatesPage").then(m => ({ default: m.CandidatesPage })));
+const CandidateProfilePage = lazy(() => import("@/pages/CandidateProfilePage").then(m => ({ default: m.CandidateProfilePage })));
+const ResultsPage = lazy(() => import("@/pages/ResultsPage").then(m => ({ default: m.ResultsPage })));
+const HowItWorksPage = lazy(() => import("@/pages/HowItWorksPage").then(m => ({ default: m.HowItWorksPage })));
+const AboutPage = lazy(() => import("@/pages/AboutPage").then(m => ({ default: m.AboutPage })));
+const VoteSuccessPage = lazy(() => import("@/pages/VoteSuccessPage").then(m => ({ default: m.VoteSuccessPage })));
+const VoteCancelPage = lazy(() => import("@/pages/VoteCancelPage").then(m => ({ default: m.VoteCancelPage })));
+const RankingPage = lazy(() => import("@/pages/RankingPage").then(m => ({ default: m.RankingPage })));
+const ContactPage = lazy(() => import("@/pages/InfoPages").then(m => ({ default: m.ContactPage })));
+const PrivacyPage = lazy(() => import("@/pages/InfoPages").then(m => ({ default: m.PrivacyPage })));
+const TermsPage = lazy(() => import("@/pages/InfoPages").then(m => ({ default: m.TermsPage })));
+
+// Code-split all admin pages (AdminAnalyticsPage brings Recharts - completely eliminated from public bundle)
+const AdminLoginPage = lazy(() => import("@/pages/admin/AdminLoginPage").then(m => ({ default: m.AdminLoginPage })));
+const AdminDashboardPage = lazy(() => import("@/pages/admin/AdminDashboardPage").then(m => ({ default: m.AdminDashboardPage })));
+const AdminCandidatesPage = lazy(() => import("@/pages/admin/AdminCandidatesPage").then(m => ({ default: m.AdminCandidatesPage })));
+const AdminPaymentsPage = lazy(() => import("@/pages/admin/AdminPaymentsPage").then(m => ({ default: m.AdminPaymentsPage })));
+const AdminAnalyticsPage = lazy(() => import("@/pages/admin/AdminAnalyticsPage").then(m => ({ default: m.AdminAnalyticsPage })));
+const AdminLedgerPage = lazy(() => import("@/pages/admin/AdminLedgerPage").then(m => ({ default: m.AdminLedgerPage })));
+
+// Lightweight branded page loading placeholder
+function PageFallback() {
+  return (
+    <div
+      style={{
+        minHeight: "50vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        flexDirection: "column",
+        gap: "0.75rem",
+        padding: "2rem",
+      }}
+      aria-busy="true"
+      aria-label="Loading page"
+    >
+      <div
+        style={{
+          width: 32,
+          height: 32,
+          borderRadius: "50%",
+          border: "3px solid #FFE1E8",
+          borderTopColor: "#E51B3E",
+          animation: "spin 0.8s linear infinite",
+        }}
+      />
+    </div>
+  );
+}
 
 // Layout wrapper for public pages
 function PublicLayout({ children }: { children: React.ReactNode }) {
@@ -187,7 +222,8 @@ export default function App() {
             Skip to main content
           </a>
 
-          <Routes>
+          <Suspense fallback={<PageFallback />}>
+            <Routes>
             {/* Public routes */}
             <Route
               path="/"
@@ -338,7 +374,8 @@ export default function App() {
                 </PublicLayout>
               }
             />
-          </Routes>
+            </Routes>
+          </Suspense>
         </BrowserRouter>
       </AuthProvider>
     </HelmetProvider>

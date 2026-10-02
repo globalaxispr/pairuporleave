@@ -574,7 +574,9 @@ export async function fetchCandidatesSafe(limit?: number): Promise<PublicCandida
         return (data as unknown as Record<string, unknown>[]).map(pickPublicFields);
       }
       if (error && error.code !== "PGRST205") {
-        console.error("[Supabase] candidates fetch error (non-sensitive):", error.code);
+        if (import.meta.env.DEV) {
+          console.warn("[Supabase] candidates fetch notice:", error.code);
+        }
       }
     } catch {
       // Silent: do not expose stack traces or internal errors

@@ -300,11 +300,11 @@ export function RankingPage() {
                       >
                         {top1.candidate_type === "couple" && top1.person_one_photo_url && top1.person_two_photo_url ? (
                           <div style={{ display: "flex", width: "100%", height: "100%" }}>
-                            <img src={top1.person_one_photo_url} alt="Partner 1" style={{ width: "50%", height: "100%", objectFit: "cover" }} />
-                            <img src={top1.person_two_photo_url} alt="Partner 2" style={{ width: "50%", height: "100%", objectFit: "cover", borderLeft: "1px solid #fff" }} />
+                            <img src={top1.person_one_photo_url} alt="Partner 1" width={48} height={96} loading="lazy" decoding="async" style={{ width: "50%", height: "100%", objectFit: "cover" }} />
+                            <img src={top1.person_two_photo_url} alt="Partner 2" width={48} height={96} loading="lazy" decoding="async" style={{ width: "50%", height: "100%", objectFit: "cover", borderLeft: "1px solid #fff" }} />
                           </div>
                         ) : top1.photo_url ? (
-                          <img src={top1.photo_url} alt={top1.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          <img src={top1.photo_url} alt={top1.name} width={96} height={96} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                         ) : (
                           <span style={{ color: "#ffffff", fontSize: "2rem", fontWeight: 800 }}>{getInitials(top1.name)}</span>
                         )}
@@ -406,11 +406,11 @@ export function RankingPage() {
                       >
                         {top2.candidate_type === "couple" && top2.person_one_photo_url && top2.person_two_photo_url ? (
                           <div style={{ display: "flex", width: "100%", height: "100%" }}>
-                            <img src={top2.person_one_photo_url} alt="Partner 1" style={{ width: "50%", height: "100%", objectFit: "cover" }} />
-                            <img src={top2.person_two_photo_url} alt="Partner 2" style={{ width: "50%", height: "100%", objectFit: "cover", borderLeft: "1px solid #fff" }} />
+                            <img src={top2.person_one_photo_url} alt="Partner 1" width={40} height={80} loading="lazy" decoding="async" style={{ width: "50%", height: "100%", objectFit: "cover" }} />
+                            <img src={top2.person_two_photo_url} alt="Partner 2" width={40} height={80} loading="lazy" decoding="async" style={{ width: "50%", height: "100%", objectFit: "cover", borderLeft: "1px solid #fff" }} />
                           </div>
                         ) : top2.photo_url ? (
-                          <img src={top2.photo_url} alt={top2.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          <img src={top2.photo_url} alt={top2.name} width={80} height={80} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                         ) : (
                           <span style={{ color: "#ffffff", fontSize: "1.625rem", fontWeight: 800 }}>{getInitials(top2.name)}</span>
                         )}
@@ -511,11 +511,11 @@ export function RankingPage() {
                       >
                         {top3.candidate_type === "couple" && top3.person_one_photo_url && top3.person_two_photo_url ? (
                           <div style={{ display: "flex", width: "100%", height: "100%" }}>
-                            <img src={top3.person_one_photo_url} alt="Partner 1" style={{ width: "50%", height: "100%", objectFit: "cover" }} />
-                            <img src={top3.person_two_photo_url} alt="Partner 2" style={{ width: "50%", height: "100%", objectFit: "cover", borderLeft: "1px solid #fff" }} />
+                            <img src={top3.person_one_photo_url} alt="Partner 1" width={40} height={80} loading="lazy" decoding="async" style={{ width: "50%", height: "100%", objectFit: "cover" }} />
+                            <img src={top3.person_two_photo_url} alt="Partner 2" width={40} height={80} loading="lazy" decoding="async" style={{ width: "50%", height: "100%", objectFit: "cover", borderLeft: "1px solid #fff" }} />
                           </div>
                         ) : top3.photo_url ? (
-                          <img src={top3.photo_url} alt={top3.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          <img src={top3.photo_url} alt={top3.name} width={80} height={80} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                         ) : (
                           <span style={{ color: "#ffffff", fontSize: "1.625rem", fontWeight: 800 }}>{getInitials(top3.name)}</span>
                         )}
@@ -636,11 +636,11 @@ export function RankingPage() {
                         >
                           {cand.candidate_type === "couple" && cand.person_one_photo_url && cand.person_two_photo_url ? (
                             <div style={{ display: "flex", width: "100%", height: "100%" }}>
-                              <img src={cand.person_one_photo_url} alt="Partner 1" style={{ width: "50%", height: "100%", objectFit: "cover" }} />
-                              <img src={cand.person_two_photo_url} alt="Partner 2" style={{ width: "50%", height: "100%", objectFit: "cover", borderLeft: "1px solid #fff" }} />
+                              <img src={cand.person_one_photo_url} alt="Partner 1" width={22} height={44} loading="lazy" decoding="async" style={{ width: "50%", height: "100%", objectFit: "cover" }} />
+                              <img src={cand.person_two_photo_url} alt="Partner 2" width={22} height={44} loading="lazy" decoding="async" style={{ width: "50%", height: "100%", objectFit: "cover", borderLeft: "1px solid #fff" }} />
                             </div>
                           ) : cand.photo_url ? (
-                            <img src={cand.photo_url} alt={cand.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                            <img src={cand.photo_url} alt={cand.name} width={44} height={44} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                           ) : (
                             getInitials(cand.name)
                           )}

@@ -104,6 +104,9 @@ export function Navbar() {
               <img
                 src="/logo@2x.png"
                 alt="Pair Up or Leave"
+                width={150}
+                height={38}
+                decoding="async"
                 style={{
                   height: 38,
                   width: "auto",
@@ -241,6 +244,10 @@ export function Navbar() {
               <img
                 src="/logo@2x.png"
                 alt="Pair Up or Leave"
+                width={126}
+                height={32}
+                loading="lazy"
+                decoding="async"
                 style={{
                   height: 32,
                   width: "auto",
