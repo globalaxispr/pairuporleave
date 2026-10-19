@@ -124,7 +124,41 @@ export function AutoVideoOverlay() {
     }
   }, [isMuted, sendIframeCommand]);
 
-  // Load initial settings and check session dismissal
+  const hasCheckedRef = useRef(false);
+
+  // Subscribe to realtime broadcast updates on mount
+  useEffect(() => {
+    const channel = supabase
+      .channel("auto-video-overlay-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "live_show_settings" },
+        (payload) => {
+          if (payload.new && typeof payload.new === "object") {
+            const updated = payload.new as Record<string, unknown>;
+            setSettings((prev) => ({
+              ...prev,
+              is_enabled: updated.is_enabled !== undefined ? Boolean(updated.is_enabled) : prev.is_enabled,
+              status: (updated.status as any) || prev.status,
+              video_id: (updated.video_id as string | null) ?? prev.video_id,
+              video_url: (updated.video_url as string | null) ?? prev.video_url,
+              title: (updated.title as string) || prev.title,
+              description: (updated.description as string | null) ?? prev.description,
+              scheduled_start_time: (updated.scheduled_start_time as string | null) ?? prev.scheduled_start_time,
+              channel_url: (updated.channel_url as string) || prev.channel_url,
+              auto_open_overlay: updated.auto_open_overlay !== undefined ? Boolean(updated.auto_open_overlay) : prev.auto_open_overlay,
+            }));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, []);
+
+  // Initial check on public landing (never re-triggers on internal route changes)
   useEffect(() => {
     // Never auto-trigger inside /admin routes
     if (location.pathname.startsWith("/admin")) {
@@ -140,6 +174,12 @@ export function AutoVideoOverlay() {
     } catch {
       // ignore
     }
+
+    // Prevent duplicate triggers across internal React route changes
+    if (hasCheckedRef.current) {
+      return;
+    }
+    hasCheckedRef.current = true;
 
     let isMounted = true;
 
@@ -170,35 +210,8 @@ export function AutoVideoOverlay() {
 
     void checkAndOpen();
 
-    // Listen to realtime settings changes
-    const channel = supabase
-      .channel("auto-video-overlay-realtime")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "live_show_settings" },
-        (payload) => {
-          if (payload.new && typeof payload.new === "object") {
-            const updated = payload.new as Record<string, unknown>;
-            setSettings((prev) => ({
-              ...prev,
-              is_enabled: updated.is_enabled !== undefined ? Boolean(updated.is_enabled) : prev.is_enabled,
-              status: (updated.status as any) || prev.status,
-              video_id: (updated.video_id as string | null) ?? prev.video_id,
-              video_url: (updated.video_url as string | null) ?? prev.video_url,
-              title: (updated.title as string) || prev.title,
-              description: (updated.description as string | null) ?? prev.description,
-              scheduled_start_time: (updated.scheduled_start_time as string | null) ?? prev.scheduled_start_time,
-              channel_url: (updated.channel_url as string) || prev.channel_url,
-              auto_open_overlay: updated.auto_open_overlay !== undefined ? Boolean(updated.auto_open_overlay) : prev.auto_open_overlay,
-            }));
-          }
-        }
-      )
-      .subscribe();
-
     return () => {
       isMounted = false;
-      void supabase.removeChannel(channel);
     };
   }, [location.pathname]);
 
