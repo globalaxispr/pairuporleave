@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Admin Navigation Performance Instrumentation
  * DEV-ONLY — completely dead code in production builds (Vite tree-shakes
  * all code behind import.meta.env.DEV === false at build time).
@@ -26,7 +26,7 @@ export function perfNavEnd(label = "Total") {
   if (!DEV) return;
   const total = (performance.now() - navStart).toFixed(1);
   console.log(`  ----------------------------`);
-  console.log(`  ${label}: ${total}ms`);
+  console.log(`  ${label} to ${navTo}: ${total}ms`);
   console.groupEnd();
 }
 

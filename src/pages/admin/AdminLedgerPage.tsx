@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { Helmet } from "react-helmet-async";
 import {
   FileText, Search, Filter, DollarSign, Gift, ShieldAlert,
-  RefreshCw, ArrowRight, PlusCircle, AlertCircle
+  RefreshCw, AlertCircle
 } from "lucide-react";
 import {
   type Candidate, type ScoreLedgerEntry, type ScoreAdjustmentType,
@@ -140,7 +140,7 @@ export function AdminLedgerPage() {
           icon: DollarSign,
         };
       case "BONUS":
-      case "ADMIN_ADD" as any:
+      case "ADMIN_ADD":
         return {
           label: "Points Added",
           bg: "#FFF3F5",
@@ -149,7 +149,7 @@ export function AdminLedgerPage() {
           icon: Gift,
         };
       case "PENALTY":
-      case "ADMIN_REMOVE" as any:
+      case "ADMIN_REMOVE":
         return {
           label: "Penalty",
           bg: "#FEF2F2",

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Play, Radio, Calendar, ExternalLink, Vote, Clock, CheckCircle2 } from "lucide-react";
+import { Play, Radio, Calendar, ExternalLink, Vote, Clock } from "lucide-react";
 import { YouTubeIcon } from "@/components/ui/YouTubeIcon";
 import {
   fetchLiveShowSettings,
@@ -80,7 +80,6 @@ export function WatchTheShowSection() {
   const { videoId } = extractYouTubeVideoId(settings.video_id || settings.video_url);
   const isLive = settings.status === "live" && Boolean(videoId);
   const isScheduled = settings.status === "scheduled";
-  const isOffline = settings.status === "offline" || (!isLive && !isScheduled);
 
   const embedUrl = videoId ? buildYouTubeEmbedUrl(videoId, { autoplay: true }) : "";
   const fallbackWatchUrl = videoId ? getYouTubeWatchUrl(videoId) : OFFICIAL_YOUTUBE_CHANNEL;

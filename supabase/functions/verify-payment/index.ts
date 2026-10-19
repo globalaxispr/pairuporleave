@@ -17,12 +17,61 @@ function getCorsHeaders(requestOrigin: string | null): HeadersInit {
   };
 }
 
+// Rate limiting: 60 queries per IP per minute
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const MAX_REQUESTS_PER_WINDOW = 60;
+const ipRequestHistory = new Map<string, number[]>();
+
+function isRateLimited(ip: string): boolean {
+  if (ip === "unknown") return false;
+  const now = Date.now();
+  const timestamps = ipRequestHistory.get(ip) || [];
+  const recent = timestamps.filter((t) => now - t < RATE_LIMIT_WINDOW_MS);
+
+  if (recent.length >= MAX_REQUESTS_PER_WINDOW) {
+    return true;
+  }
+
+  recent.push(now);
+  ipRequestHistory.set(ip, recent);
+
+  if (ipRequestHistory.size > 1000) {
+    for (const [k, v] of ipRequestHistory.entries()) {
+      const active = v.filter((t) => now - t < RATE_LIMIT_WINDOW_MS);
+      if (active.length === 0) ipRequestHistory.delete(k);
+      else ipRequestHistory.set(k, active);
+    }
+  }
+
+  return false;
+}
+
 Deno.serve(async (req) => {
   const requestOrigin = req.headers.get("origin");
   const corsHeaders = getCorsHeaders(requestOrigin);
 
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
+
+  const clientIp =
+    req.headers.get("cf-connecting-ip") ||
+    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    req.headers.get("x-real-ip") ||
+    "unknown";
+
+  if (isRateLimited(clientIp)) {
+    return new Response(
+      JSON.stringify({ error: "Too many verification requests. Please wait a minute and try again." }),
+      {
+        status: 429,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json",
+          "Retry-After": "60",
+        },
+      }
+    );
   }
 
   try {

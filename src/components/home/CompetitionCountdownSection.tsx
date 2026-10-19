@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
-import { Clock, Calendar, CheckCircle2, Vote, Trophy, AlertTriangle } from "lucide-react";
+import { Clock, Calendar, CheckCircle2, Vote, Trophy } from "lucide-react";
 import {
   fetchCompetitionSchedule,
   getCompetitionStatus,
@@ -47,7 +47,6 @@ export function CompetitionCountdownSection() {
 
     async function loadSchedule() {
       try {
-        const clientFetchTime = Date.now();
         const data = await fetchCompetitionSchedule();
         if (!isMounted) return;
 

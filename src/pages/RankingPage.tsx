@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { Helmet } from "react-helmet-async";
-import { Trophy, TrendingUp, Vote, Zap, SlidersHorizontal } from "lucide-react";
+import { Trophy, TrendingUp, Vote } from "lucide-react";
 import { supabase, type PublicCandidate, fetchCandidatesSafe, getCandidateScore, pickPublicFields } from "@/lib/supabase";
 import { formatNumber, SITE_URL } from "@/lib/utils";
 import { VoteModal } from "@/components/voting/VoteModal";

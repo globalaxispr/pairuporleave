@@ -569,7 +569,8 @@ export async function fetchCandidatesSafe(limit?: number): Promise<PublicCandida
   if (IS_SUPABASE_READY) {
     try {
       // 1. Primary: query public_candidates view (protected at the database level)
-      let viewQuery = (supabase.from("public_candidates" as any) as any)
+      let viewQuery = supabase
+        .from("public_candidates")
         .select(PUBLIC_CANDIDATE_COLUMNS)
         .order("current_score", { ascending: false });
 
@@ -626,7 +627,7 @@ export async function fetchCandidateByIdSafe(id?: string | null): Promise<Public
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
       // 1. Primary: query public_candidates view
-      let viewQuery = (supabase.from("public_candidates" as any) as any).select(PUBLIC_CANDIDATE_COLUMNS);
+      let viewQuery = supabase.from("public_candidates").select(PUBLIC_CANDIDATE_COLUMNS);
       if (isUuid) {
         viewQuery = viewQuery.or(`id.eq.${id},slug.eq.${id}`);
       } else {

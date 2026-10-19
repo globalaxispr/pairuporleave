@@ -7,9 +7,7 @@ import {
   RefreshCw,
   CheckCircle2,
   AlertCircle,
-  Globe,
   Eye,
-  Sliders,
 } from "lucide-react";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import {
@@ -607,7 +605,7 @@ export function AdminSchedulePage() {
 
                 <button
                   type="submit"
-                  disabled={saving}
+                  disabled={saving || loading}
                   style={{
                     display: "inline-flex",
                     alignItems: "center",
@@ -619,15 +617,20 @@ export function AdminSchedulePage() {
                     fontWeight: 800,
                     fontSize: "0.9375rem",
                     border: "none",
-                    cursor: saving ? "not-allowed" : "pointer",
+                    cursor: (saving || loading) ? "not-allowed" : "pointer",
                     boxShadow: "0 2px 10px rgba(229, 27, 62, 0.35)",
-                    opacity: saving ? 0.7 : 1,
+                    opacity: (saving || loading) ? 0.7 : 1,
                   }}
                 >
                   {saving ? (
                     <>
                       <RefreshCw size={18} className="animate-spin" />
                       <span>Saving Schedule...</span>
+                    </>
+                  ) : loading ? (
+                    <>
+                      <RefreshCw size={18} className="animate-spin" />
+                      <span>Loading...</span>
                     </>
                   ) : (
                     <>

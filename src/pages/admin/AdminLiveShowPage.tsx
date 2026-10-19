@@ -10,8 +10,6 @@ import {
   Play,
   Eye,
   RefreshCw,
-  Clock,
-  Tv,
   Sparkles,
 } from "lucide-react";
 import { YouTubeIcon } from "@/components/ui/YouTubeIcon";
@@ -28,8 +26,6 @@ import {
   extractYouTubeVideoId,
   buildYouTubeEmbedUrl,
   getYouTubeThumbnailUrl,
-  getYouTubeWatchUrl,
-  isValidYouTubeId,
   OFFICIAL_YOUTUBE_CHANNEL,
   OFFICIAL_YOUTUBE_HANDLE,
 } from "@/lib/youtube";
@@ -849,7 +845,7 @@ export function AdminLiveShowPage() {
 
                 <button
                   type="submit"
-                  disabled={saving}
+                  disabled={saving || loading}
                   style={{
                     display: "inline-flex",
                     alignItems: "center",
@@ -861,9 +857,9 @@ export function AdminLiveShowPage() {
                     fontWeight: 800,
                     fontSize: "0.9375rem",
                     border: "none",
-                    cursor: saving ? "not-allowed" : "pointer",
+                    cursor: (saving || loading) ? "not-allowed" : "pointer",
                     boxShadow: "0 2px 10px rgba(229, 27, 62, 0.35)",
-                    opacity: saving ? 0.7 : 1,
+                    opacity: (saving || loading) ? 0.7 : 1,
                   }}
                 >
                   {saving ? (

@@ -17,7 +17,6 @@ const DATE_FILTERS = [
   { label: "All Time", days: -1 },
 ];
 
-const COLORS = ["#E51B3E", "#7A0C2E", "#FF5475", "#4A061C", "#A82046", "#F43F5E"];
 const TYPE_COLORS = ["#7A0C2E", "#E51B3E"];
 
 interface PaymentRecord {
@@ -124,13 +123,6 @@ export function AdminAnalyticsPage() {
   const revenueOverTime = Object.entries(revenueByDay)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([date, revenue]) => ({ date, revenue }));
-
-  // Pie chart (score distribution)
-  const pieData = candidates.slice(0, 6).map((c, i) => ({
-    name: (c.candidate_type === "couple" ? (c.display_name || c.name) : c.name).split(" ")[0],
-    value: c.current_score ?? c.total_votes ?? 0,
-    color: COLORS[i % COLORS.length],
-  }));
 
   return (
     <AdminLayout>

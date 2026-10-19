@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "react-router-dom";
-import { X, Volume2, VolumeX, ExternalLink, Radio, Calendar, Sparkles } from "lucide-react";
+import { X, Volume2, VolumeX, ExternalLink, Calendar } from "lucide-react";
 import { YouTubeIcon } from "@/components/ui/YouTubeIcon";
 import {
   fetchLiveShowSettings,
@@ -13,7 +13,6 @@ import {
   buildYouTubeEmbedUrl,
   getYouTubeWatchUrl,
   isValidYouTubeId,
-  OFFICIAL_YOUTUBE_CHANNEL,
   OFFICIAL_YOUTUBE_HANDLE,
 } from "@/lib/youtube";
 
@@ -306,7 +305,6 @@ export function AutoVideoOverlay() {
   });
 
   const watchUrl = getYouTubeWatchUrl(videoId);
-  const channelUrl = settings.channel_url || OFFICIAL_YOUTUBE_CHANNEL;
 
   return (
     <div

@@ -45,7 +45,7 @@ export function CandidateScoreHistoryModal({
           icon: DollarSign,
         };
       case "BONUS":
-      case "ADMIN_ADD" as any:
+      case "ADMIN_ADD":
         return {
           label: "Points Added",
           bg: "#FFF3F5",
@@ -54,7 +54,7 @@ export function CandidateScoreHistoryModal({
           icon: Gift,
         };
       case "PENALTY":
-      case "ADMIN_REMOVE" as any:
+      case "ADMIN_REMOVE":
         return {
           label: "Penalty",
           bg: "#FEF2F2",

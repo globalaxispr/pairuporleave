@@ -37,6 +37,40 @@ function getCorsHeaders(requestOrigin: string | null): HeadersInit {
 // Simple UUID v4 format validation to prevent injection via candidate_id
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+// ====================================================
+// RATE LIMITING (In-Memory Sliding Window per IP)
+// Max 30 checkout sessions created per IP per minute.
+// Prevents bot floods, card testing, and denial-of-wallet.
+// ====================================================
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const MAX_REQUESTS_PER_WINDOW = 30;
+const ipRequestHistory = new Map<string, number[]>();
+
+function isRateLimited(ip: string): boolean {
+  if (ip === "unknown") return false;
+  const now = Date.now();
+  const timestamps = ipRequestHistory.get(ip) || [];
+  const recent = timestamps.filter((t) => now - t < RATE_LIMIT_WINDOW_MS);
+
+  if (recent.length >= MAX_REQUESTS_PER_WINDOW) {
+    return true;
+  }
+
+  recent.push(now);
+  ipRequestHistory.set(ip, recent);
+
+  // Periodic pruning of stale entries
+  if (ipRequestHistory.size > 1000) {
+    for (const [k, v] of ipRequestHistory.entries()) {
+      const active = v.filter((t) => now - t < RATE_LIMIT_WINDOW_MS);
+      if (active.length === 0) ipRequestHistory.delete(k);
+      else ipRequestHistory.set(k, active);
+    }
+  }
+
+  return false;
+}
+
 Deno.serve(async (req) => {
   const requestOrigin = req.headers.get("origin");
   const corsHeaders = getCorsHeaders(requestOrigin);
@@ -50,6 +84,27 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({ error: "Method not allowed" }),
       { status: 405, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
+  // Enforce IP rate limiting
+  const clientIp =
+    req.headers.get("cf-connecting-ip") ||
+    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    req.headers.get("x-real-ip") ||
+    "unknown";
+
+  if (isRateLimited(clientIp)) {
+    return new Response(
+      JSON.stringify({ error: "Too many checkout requests. Please wait a minute and try again." }),
+      {
+        status: 429,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json",
+          "Retry-After": "60",
+        },
+      }
     );
   }
 
