@@ -1207,3 +1207,169 @@ export async function updateLiveShowSettings(
   }
 }
 
+// ---------------------------------------------------------------------------
+// COMPETITION SCHEDULE & COUNTDOWN SETTINGS
+// ---------------------------------------------------------------------------
+
+export type CompetitionStatus = "UPCOMING" | "VOTING_OPEN" | "VOTING_CLOSED";
+
+export interface CompetitionSchedule {
+  id: string;
+  name: string;
+  is_enabled: boolean;
+  start_time: string;
+  end_time: string;
+  timezone: string;
+  title: string;
+  description: string | null;
+  created_at?: string;
+  updated_at?: string;
+  updated_by?: string | null;
+}
+
+export const DEFAULT_COMPETITION_SCHEDULE: CompetitionSchedule = {
+  id: "active",
+  name: "PAIR UP OR LEAVE — Official Season Voting",
+  is_enabled: true,
+  start_time: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+  end_time: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+  timezone: "America/New_York",
+  title: "Voting Closes In",
+  description: "Every vote counts towards the live rankings. Support your favorite couples and individual candidates before the deadline!",
+};
+
+export function getCompetitionStatus(
+  schedule: CompetitionSchedule,
+  nowMs: number = Date.now()
+): CompetitionStatus {
+  if (!schedule.is_enabled) return "VOTING_CLOSED";
+  const start = new Date(schedule.start_time).getTime();
+  const end = new Date(schedule.end_time).getTime();
+  if (isNaN(start) || isNaN(end)) return "VOTING_OPEN";
+  if (nowMs < start) return "UPCOMING";
+  if (nowMs >= end) return "VOTING_CLOSED";
+  return "VOTING_OPEN";
+}
+
+const COMPETITION_SCHEDULE_STORAGE_KEY = "vote_competition_schedule";
+
+function getCachedCompetitionSchedule(): CompetitionSchedule {
+  if (typeof window === "undefined") return DEFAULT_COMPETITION_SCHEDULE;
+  try {
+    const raw = localStorage.getItem(COMPETITION_SCHEDULE_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return { ...DEFAULT_COMPETITION_SCHEDULE, ...parsed };
+    }
+  } catch {
+    // ignore
+  }
+  return DEFAULT_COMPETITION_SCHEDULE;
+}
+
+function saveCachedCompetitionSchedule(schedule: CompetitionSchedule) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(COMPETITION_SCHEDULE_STORAGE_KEY, JSON.stringify(schedule));
+  } catch {
+    // ignore
+  }
+}
+
+export async function fetchCompetitionSchedule(): Promise<CompetitionSchedule> {
+  const cached = getCachedCompetitionSchedule();
+  if (!IS_SUPABASE_READY) return cached;
+
+  try {
+    const { data, error } = await supabase
+      .from("competition_schedule")
+      .select("*")
+      .eq("id", "active")
+      .maybeSingle();
+
+    if (error) {
+      console.warn("[Competition] Could not fetch schedule from Supabase, using local fallback:", error.message);
+      return cached;
+    }
+
+    if (data) {
+      const schedule: CompetitionSchedule = {
+        id: data.id,
+        name: data.name || DEFAULT_COMPETITION_SCHEDULE.name,
+        is_enabled: data.is_enabled ?? true,
+        start_time: data.start_time || DEFAULT_COMPETITION_SCHEDULE.start_time,
+        end_time: data.end_time || DEFAULT_COMPETITION_SCHEDULE.end_time,
+        timezone: data.timezone || DEFAULT_COMPETITION_SCHEDULE.timezone,
+        title: data.title || DEFAULT_COMPETITION_SCHEDULE.title,
+        description: data.description ?? DEFAULT_COMPETITION_SCHEDULE.description,
+        created_at: data.created_at,
+        updated_at: data.updated_at,
+        updated_by: data.updated_by,
+      };
+      saveCachedCompetitionSchedule(schedule);
+      return schedule;
+    }
+  } catch (err: any) {
+    console.warn("[Competition] Unexpected error fetching schedule:", err?.message);
+  }
+
+  return cached;
+}
+
+export async function updateCompetitionSchedule(
+  patch: Partial<CompetitionSchedule>
+): Promise<{ success: boolean; error?: string; data?: CompetitionSchedule }> {
+  const current = await fetchCompetitionSchedule();
+  const updated: CompetitionSchedule = {
+    ...current,
+    ...patch,
+    id: "active",
+    updated_at: new Date().toISOString(),
+  };
+
+  saveCachedCompetitionSchedule(updated);
+
+  if (!IS_SUPABASE_READY) {
+    return { success: true, data: updated };
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from("competition_schedule")
+      .upsert({
+        id: "active",
+        name: updated.name,
+        is_enabled: updated.is_enabled,
+        start_time: updated.start_time,
+        end_time: updated.end_time,
+        timezone: updated.timezone,
+        title: updated.title,
+        description: updated.description,
+        updated_at: updated.updated_at,
+      })
+      .select()
+      .maybeSingle();
+
+    if (error) {
+      console.warn("[Competition] Supabase upsert error, saved locally:", error.message);
+      return {
+        success: true,
+        data: updated,
+        error: `Saved locally, but database returned: ${error.message}. Please verify migration 12 is executed in Supabase.`,
+      };
+    }
+
+    return {
+      success: true,
+      data: (data as CompetitionSchedule) || updated,
+    };
+  } catch (err: any) {
+    return {
+      success: true,
+      data: updated,
+      error: `Saved locally: ${err?.message || "Unknown network error"}`,
+    };
+  }
+}
+
+

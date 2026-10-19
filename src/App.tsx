@@ -33,6 +33,7 @@ const AdminPaymentsPage = lazy(() => import("@/pages/admin/AdminPaymentsPage").t
 const AdminAnalyticsPage = lazy(() => import("@/pages/admin/AdminAnalyticsPage").then(m => ({ default: m.AdminAnalyticsPage })));
 const AdminLedgerPage = lazy(() => import("@/pages/admin/AdminLedgerPage").then(m => ({ default: m.AdminLedgerPage })));
 const AdminLiveShowPage = lazy(() => import("@/pages/admin/AdminLiveShowPage").then(m => ({ default: m.AdminLiveShowPage })));
+const AdminSchedulePage = lazy(() => import("@/pages/admin/AdminSchedulePage").then(m => ({ default: m.AdminSchedulePage })));
 
 // Lightweight branded page loading placeholder
 function PageFallback() {
@@ -348,6 +349,14 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <AdminLedgerPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/schedule"
+              element={
+                <ProtectedRoute>
+                  <AdminSchedulePage />
                 </ProtectedRoute>
               }
             />

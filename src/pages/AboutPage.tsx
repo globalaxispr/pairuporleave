@@ -2,6 +2,7 @@ import { Helmet } from "react-helmet-async";
 import { Link } from "react-router-dom";
 import { Users, Heart, ShieldCheck, Trophy, ArrowRight, Vote } from "lucide-react";
 import { SITE_URL } from "@/lib/utils";
+import { MembershipPlans } from "@/components/memberships/MembershipPlans";
 
 export function AboutPage() {
   return (
@@ -489,6 +490,11 @@ export function AboutPage() {
             </div>
           </div>
         </section>
+
+        {/* ========================================================
+            YOUTUBE MEMBERSHIPS
+           ======================================================== */}
+        <MembershipPlans />
 
         {/* ========================================================
             5. FINAL CTA

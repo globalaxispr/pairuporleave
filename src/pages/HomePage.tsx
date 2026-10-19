@@ -1,7 +1,9 @@
 import { Helmet } from "react-helmet-async";
 import { HeroSection } from "@/components/home/HeroSection";
+import { CompetitionCountdownSection } from "@/components/home/CompetitionCountdownSection";
 import { LiveRankingSection } from "@/components/home/LiveRankingSection";
 import { WatchTheShowSection } from "@/components/home/WatchTheShowSection";
+import { MembershipPlans } from "@/components/memberships/MembershipPlans";
 import { FeaturedCandidates } from "@/components/home/FeaturedCandidates";
 import { StatsSection } from "@/components/home/StatsSection";
 import { HowItWorksSection } from "@/components/home/HowItWorksSection";
@@ -29,13 +31,19 @@ export function HomePage() {
         {/* 1. Hero */}
         <HeroSection />
 
-        {/* 2. Live Ranking immediately after Hero */}
+        {/* 2. Competition Countdown Timer */}
+        <CompetitionCountdownSection />
+
+        {/* 3. Live Ranking */}
         <LiveRankingSection />
 
-        {/* 3. Watch The Show (YouTube Live Broadcast / Episode) */}
+        {/* 4. Watch The Show (YouTube Live Broadcast / Episode) */}
         <WatchTheShowSection />
 
-        {/* 4. Featured Candidates (1 card per row on mobile) */}
+        {/* 5. Official YouTube Channel Memberships */}
+        <MembershipPlans />
+
+        {/* 6. Featured Candidates (1 card per row on mobile) */}
         <FeaturedCandidates />
 
         {/* 4. Contest Stats */}

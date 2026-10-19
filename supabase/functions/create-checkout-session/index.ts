@@ -102,6 +102,41 @@ Deno.serve(async (req) => {
     }
 
     // ====================================================
+    // SERVER-SIDE COMPETITION DEADLINE ENFORCEMENT
+    // Validate that competition is active and currently within voting window.
+    // Never trust frontend time or client status.
+    // ====================================================
+    const { data: schedule } = await supabaseAdmin
+      .from("competition_schedule")
+      .select("id, name, is_enabled, start_time, end_time, timezone")
+      .eq("id", "active")
+      .maybeSingle();
+
+    if (schedule && schedule.is_enabled) {
+      const now = Date.now();
+      const startTime = new Date(schedule.start_time).getTime();
+      const endTime = new Date(schedule.end_time).getTime();
+
+      if (!isNaN(startTime) && now < startTime) {
+        return new Response(
+          JSON.stringify({
+            error: `Voting has not started yet for ${schedule.name}. Voting opens at ${schedule.start_time}.`,
+          }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      if (!isNaN(endTime) && now >= endTime) {
+        return new Response(
+          JSON.stringify({
+            error: `Voting is closed for ${schedule.name}. The deadline has passed.`,
+          }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
+    // ====================================================
     // SERVER-SIDE PRICING (authoritative — never from client)
     // Individual: 1 vote = $1 (100 cents)
     // Couple:     1 vote = $2 (200 cents)
@@ -137,8 +172,9 @@ Deno.serve(async (req) => {
         candidate_type: candidateType,
         vote_quantity: vote_quantity.toString(),
         vote_price: unitPriceCents.toString(),
-        // Store expected total for webhook cross-verification
         expected_amount_cents: amountCents.toString(),
+        competition_name: schedule?.name ?? "PAIR UP OR LEAVE",
+        competition_end_time: schedule?.end_time ?? "",
       },
     });
 

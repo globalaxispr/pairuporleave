@@ -87,7 +87,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   // ====================================================
   const { data: existingPayment, error: fetchErr } = await supabaseAdmin
     .from("payments")
-    .select("id, status, amount, vote_quantity, candidate_type, vote_price")
+    .select("id, status, amount, vote_quantity, candidate_type, vote_price, created_at")
     .eq("stripe_session_id", stripeSessionId)
     .single();
 
@@ -99,6 +99,38 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   if (existingPayment.status !== "pending") {
     console.log("Webhook already processed for session:", stripeSessionId, "status:", existingPayment.status);
     return; // Already handled — idempotent, skip
+  }
+
+  // ====================================================
+  // COMPETITION DEADLINE ENFORCEMENT POLICY
+  // - Payments initiated BEFORE the deadline are honored and credited to votes.
+  // - Payments initiated AFTER the deadline are marked 'failed' and NOT credited.
+  // ====================================================
+  const { data: schedule } = await supabaseAdmin
+    .from("competition_schedule")
+    .select("is_enabled, end_time, name")
+    .eq("id", "active")
+    .maybeSingle();
+
+  if (schedule && schedule.is_enabled) {
+    const deadlineMs = new Date(schedule.end_time).getTime();
+    const initiatedAtMs = existingPayment.created_at
+      ? new Date(existingPayment.created_at).getTime()
+      : (session.created ? session.created * 1000 : Date.now());
+
+    if (!isNaN(deadlineMs) && initiatedAtMs > deadlineMs) {
+      console.warn(
+        `PAYMENT INITIATED AFTER DEADLINE: Session ${stripeSessionId} was created at ${initiatedAtMs} (after deadline ${deadlineMs}). Flagging as failed and refusing vote creation.`
+      );
+      await supabaseAdmin
+        .from("payments")
+        .update({
+          status: "failed",
+          stripe_payment_intent_id: (session.payment_intent as string) ?? null,
+        })
+        .eq("id", existingPayment.id);
+      return;
+    }
   }
 
   // ====================================================
