@@ -31,6 +31,7 @@ const AdminCandidatesPage = lazy(() => import("@/pages/admin/AdminCandidatesPage
 const AdminPaymentsPage = lazy(() => import("@/pages/admin/AdminPaymentsPage").then(m => ({ default: m.AdminPaymentsPage })));
 const AdminAnalyticsPage = lazy(() => import("@/pages/admin/AdminAnalyticsPage").then(m => ({ default: m.AdminAnalyticsPage })));
 const AdminLedgerPage = lazy(() => import("@/pages/admin/AdminLedgerPage").then(m => ({ default: m.AdminLedgerPage })));
+const AdminLiveShowPage = lazy(() => import("@/pages/admin/AdminLiveShowPage").then(m => ({ default: m.AdminLiveShowPage })));
 
 // Lightweight branded page loading placeholder
 function PageFallback() {
@@ -345,6 +346,14 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <AdminLedgerPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/live"
+              element={
+                <ProtectedRoute>
+                  <AdminLiveShowPage />
                 </ProtectedRoute>
               }
             />

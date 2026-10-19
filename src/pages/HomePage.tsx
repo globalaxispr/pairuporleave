@@ -1,6 +1,7 @@
 import { Helmet } from "react-helmet-async";
 import { HeroSection } from "@/components/home/HeroSection";
 import { LiveRankingSection } from "@/components/home/LiveRankingSection";
+import { WatchTheShowSection } from "@/components/home/WatchTheShowSection";
 import { FeaturedCandidates } from "@/components/home/FeaturedCandidates";
 import { StatsSection } from "@/components/home/StatsSection";
 import { HowItWorksSection } from "@/components/home/HowItWorksSection";
@@ -31,7 +32,10 @@ export function HomePage() {
         {/* 2. Live Ranking immediately after Hero */}
         <LiveRankingSection />
 
-        {/* 3. Featured Candidates (1 card per row on mobile) */}
+        {/* 3. Watch The Show (YouTube Live Broadcast / Episode) */}
+        <WatchTheShowSection />
+
+        {/* 4. Featured Candidates (1 card per row on mobile) */}
         <FeaturedCandidates />
 
         {/* 4. Contest Stats */}

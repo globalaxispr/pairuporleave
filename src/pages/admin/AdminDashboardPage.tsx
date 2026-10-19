@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
-import { Users, Vote, DollarSign, TrendingUp, Activity, BarChart3 } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Users, Vote, DollarSign, TrendingUp, Activity, BarChart3, Radio } from "lucide-react";
 import { supabase, DEMO_CANDIDATES, IS_SUPABASE_READY } from "@/lib/supabase";
 import { formatNumber, formatCurrency } from "@/lib/utils";
 import { AdminLayout } from "@/components/admin/AdminLayout";
@@ -125,13 +126,35 @@ export function AdminDashboardPage() {
     <AdminLayout>
       <Helmet><title>Admin Overview — Pair Up or Leave</title></Helmet>
 
-      <div style={{ marginBottom: "2rem" }}>
-        <h1 style={{ fontSize: "1.75rem", fontWeight: 800, color: "#24131A", margin: "0 0 0.25rem", letterSpacing: "-0.02em" }}>
-          Dashboard Overview
-        </h1>
-        <p style={{ fontSize: "0.9375rem", color: "#6B6870", margin: 0 }}>
-          Platform statistics and score ledger metrics at a glance.
-        </p>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "1rem", marginBottom: "2rem" }}>
+        <div>
+          <h1 style={{ fontSize: "1.75rem", fontWeight: 800, color: "#24131A", margin: "0 0 0.25rem", letterSpacing: "-0.02em" }}>
+            Dashboard Overview
+          </h1>
+          <p style={{ fontSize: "0.9375rem", color: "#6B6870", margin: 0 }}>
+            Platform statistics and score ledger metrics at a glance.
+          </p>
+        </div>
+        <Link
+          to="/admin/live"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "0.5rem",
+            padding: "0.625rem 1.125rem",
+            borderRadius: 12,
+            background: "#FFFFFF",
+            border: "1.5px solid #F0DCE2",
+            color: "#7A0C2E",
+            fontWeight: 700,
+            fontSize: "0.875rem",
+            textDecoration: "none",
+            boxShadow: "0 2px 8px rgba(74, 6, 28, 0.04)",
+          }}
+        >
+          <Radio size={16} color="#E51B3E" />
+          <span>Manage YouTube Live</span>
+        </Link>
       </div>
 
       {loading ? (

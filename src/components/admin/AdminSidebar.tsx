@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Users, CreditCard, BarChart3, FileText, LogOut } from "lucide-react";
+import { LayoutDashboard, Users, CreditCard, BarChart3, FileText, LogOut, Radio } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { perfNavStart } from "@/lib/adminPerf";
 
@@ -7,6 +7,7 @@ const navItems = [
   { label: "Overview", to: "/admin", icon: LayoutDashboard, exact: true },
   { label: "Candidates", to: "/admin/candidates", icon: Users },
   { label: "Score Ledger", to: "/admin/ledger", icon: FileText },
+  { label: "YouTube Live", to: "/admin/live", icon: Radio },
   { label: "Payments", to: "/admin/payments", icon: CreditCard },
   { label: "Analytics", to: "/admin/analytics", icon: BarChart3 },
 ];

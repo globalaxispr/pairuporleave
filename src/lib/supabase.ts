@@ -250,6 +250,26 @@ export type Database = {
           created_at: string;
         };
       };
+      live_show_settings: {
+        Row: {
+          id: string;
+          is_enabled: boolean;
+          status: "live" | "scheduled" | "offline";
+          video_id: string | null;
+          video_url: string | null;
+          title: string;
+          description: string | null;
+          scheduled_start_time: string | null;
+          channel_url: string;
+          created_at: string;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["live_show_settings"]["Row"]> & {
+          id?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["live_show_settings"]["Row"]>;
+      };
     };
     Views: {
       public_candidates: {
@@ -1013,3 +1033,173 @@ export async function adjustCandidateScore({
     cappedAtZero,
   };
 }
+
+// ---------------------------------------------------------------------------
+// YOUTUBE LIVE SHOW SETTINGS
+// ---------------------------------------------------------------------------
+
+export type LiveShowStatus = "live" | "scheduled" | "offline";
+
+export interface LiveShowSettings {
+  id: string;
+  is_enabled: boolean;
+  status: LiveShowStatus;
+  video_id: string | null;
+  video_url: string | null;
+  title: string;
+  description: string | null;
+  scheduled_start_time: string | null;
+  channel_url: string;
+  created_at?: string;
+  updated_at?: string;
+  updated_by?: string | null;
+}
+
+export const DEFAULT_LIVE_SHOW_SETTINGS: LiveShowSettings = {
+  id: "primary",
+  is_enabled: true,
+  status: "offline",
+  video_id: null,
+  video_url: null,
+  title: "PAIR UP OR LEAVE — Official Live Show",
+  description: "Watch the official PAIR UP OR LEAVE live broadcast. Follow the couples, individual candidates, and live drama as voting unfolds.",
+  scheduled_start_time: null,
+  channel_url: "https://youtube.com/@pairuporleave",
+};
+
+const LIVE_SHOW_STORAGE_KEY = "vote_live_show_settings";
+
+function getCachedLiveShowSettings(): LiveShowSettings {
+  if (typeof window === "undefined") return DEFAULT_LIVE_SHOW_SETTINGS;
+  try {
+    const raw = localStorage.getItem(LIVE_SHOW_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return { ...DEFAULT_LIVE_SHOW_SETTINGS, ...parsed };
+    }
+  } catch {
+    // ignore
+  }
+  return DEFAULT_LIVE_SHOW_SETTINGS;
+}
+
+function saveCachedLiveShowSettings(settings: LiveShowSettings) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(LIVE_SHOW_STORAGE_KEY, JSON.stringify(settings));
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * Fetches the active YouTube Live Show settings.
+ * Resilient: gracefully falls back to localStorage/default if Supabase is offline or table is unmigrated.
+ */
+export async function fetchLiveShowSettings(): Promise<LiveShowSettings> {
+  const cached = getCachedLiveShowSettings();
+
+  if (!IS_SUPABASE_READY) {
+    return cached;
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from("live_show_settings")
+      .select("*")
+      .eq("id", "primary")
+      .maybeSingle();
+
+    if (error) {
+      // If table doesn't exist yet (PGRST116/42P01), return cached fallback gracefully without breaking
+      console.warn("[LiveShow] Could not fetch settings from Supabase, using local fallback:", error.message);
+      return cached;
+    }
+
+    if (data) {
+      const settings: LiveShowSettings = {
+        id: data.id,
+        is_enabled: data.is_enabled ?? true,
+        status: (data.status as LiveShowStatus) ?? "offline",
+        video_id: data.video_id ?? null,
+        video_url: data.video_url ?? null,
+        title: data.title || DEFAULT_LIVE_SHOW_SETTINGS.title,
+        description: data.description ?? DEFAULT_LIVE_SHOW_SETTINGS.description,
+        scheduled_start_time: data.scheduled_start_time ?? null,
+        channel_url: data.channel_url || DEFAULT_LIVE_SHOW_SETTINGS.channel_url,
+        created_at: data.created_at,
+        updated_at: data.updated_at,
+        updated_by: data.updated_by,
+      };
+      saveCachedLiveShowSettings(settings);
+      return settings;
+    }
+  } catch (err: any) {
+    console.warn("[LiveShow] Unexpected error fetching live show settings:", err?.message);
+  }
+
+  return cached;
+}
+
+/**
+ * Updates the YouTube Live Show settings.
+ * Only callable by authorized administrators.
+ */
+export async function updateLiveShowSettings(
+  patch: Partial<LiveShowSettings>
+): Promise<{ success: boolean; error?: string; data?: LiveShowSettings }> {
+  const current = await fetchLiveShowSettings();
+  const updated: LiveShowSettings = {
+    ...current,
+    ...patch,
+    id: "primary",
+    updated_at: new Date().toISOString(),
+  };
+
+  // Always update local cache so admin preview and local dev feel instant
+  saveCachedLiveShowSettings(updated);
+
+  if (!IS_SUPABASE_READY) {
+    return { success: true, data: updated };
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from("live_show_settings")
+      .upsert({
+        id: "primary",
+        is_enabled: updated.is_enabled,
+        status: updated.status,
+        video_id: updated.video_id,
+        video_url: updated.video_url,
+        title: updated.title,
+        description: updated.description,
+        scheduled_start_time: updated.scheduled_start_time,
+        channel_url: updated.channel_url,
+        updated_at: updated.updated_at,
+      })
+      .select()
+      .maybeSingle();
+
+    if (error) {
+      console.warn("[LiveShow] Supabase upsert error, saved locally:", error.message);
+      return {
+        success: true,
+        data: updated,
+        error: `Saved in browser session, but database update returned: ${error.message}. Please verify migration 10 is executed in Supabase.`,
+      };
+    }
+
+    return {
+      success: true,
+      data: (data as LiveShowSettings) || updated,
+    };
+  } catch (err: any) {
+    return {
+      success: true,
+      data: updated,
+      error: `Saved locally: ${err?.message || "Unknown network error"}`,
+    };
+  }
+}
+
