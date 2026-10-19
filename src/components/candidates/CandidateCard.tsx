@@ -88,6 +88,51 @@ export function CandidateCard({ candidate, rank }: CandidateCardProps) {
         }}
         aria-label={`Candidate: ${candidate.name}`}
       >
+        {/* Dedicated Metadata Row for Couple Candidates — Positions COUPLE and category badges cleanly outside the face area */}
+        {isCouple && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "flex-end",
+              gap: "0.375rem",
+              padding: "0.45rem 0.75rem",
+              background: "#FFF8FA",
+              borderBottom: "1px solid #F0DCE2",
+              cursor: "pointer",
+            }}
+            onClick={() => navigate(`/candidate/${candidate.id}`)}
+          >
+            <span
+              style={{
+                background: "#FFE1E8",
+                color: "#7A0C2E",
+                border: "1px solid #F0DCE2",
+                padding: "0.2rem 0.55rem",
+                borderRadius: 99,
+                fontSize: "0.6875rem",
+                fontWeight: 800,
+                letterSpacing: "0.04em",
+                boxShadow: "0 1px 4px rgba(74, 6, 28, 0.06)",
+              }}
+            >
+              COUPLE
+            </span>
+            <div
+              style={{
+                background: "rgba(74, 6, 28, 0.88)",
+                color: "#FFFFFF",
+                padding: "0.2rem 0.625rem",
+                borderRadius: 99,
+                fontSize: "0.75rem",
+                fontWeight: 700,
+              }}
+            >
+              {candidate.category}
+            </div>
+          </div>
+        )}
+
         {/* Photo Area */}
         <div
           style={{
@@ -103,35 +148,19 @@ export function CandidateCard({ candidate, rank }: CandidateCardProps) {
           {/* Rank Badge */}
           {rankBadgeStyle(rank)}
 
-          {/* Badges: Type (Couple / Individual) + Category Chip */}
-          <div
-            style={{
-              position: "absolute",
-              top: "0.75rem",
-              right: "0.75rem",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.375rem",
-              zIndex: 2,
-            }}
-          >
-            {isCouple ? (
-              <span
-                style={{
-                  background: "#FFE1E8",
-                  color: "#7A0C2E",
-                  border: "1px solid #F0DCE2",
-                  padding: "0.25rem 0.55rem",
-                  borderRadius: 99,
-                  fontSize: "0.6875rem",
-                  fontWeight: 800,
-                  letterSpacing: "0.04em",
-                  boxShadow: "0 2px 6px rgba(74, 6, 28, 0.08)",
-                }}
-              >
-                COUPLE
-              </span>
-            ) : (
+          {/* Badges: Type (Individual) + Category Chip for Individual Cards Only */}
+          {!isCouple && (
+            <div
+              style={{
+                position: "absolute",
+                top: "0.75rem",
+                right: "0.75rem",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.375rem",
+                zIndex: 2,
+              }}
+            >
               <span
                 style={{
                   background: "#FFF3F5",
@@ -146,21 +175,21 @@ export function CandidateCard({ candidate, rank }: CandidateCardProps) {
               >
                 INDIVIDUAL
               </span>
-            )}
-            <div
-              style={{
-                background: "rgba(74, 6, 28, 0.88)",
-                color: "#FFFFFF",
-                padding: "0.25rem 0.625rem",
-                borderRadius: 99,
-                fontSize: "0.75rem",
-                fontWeight: 700,
-                backdropFilter: "blur(4px)",
-              }}
-            >
-              {candidate.category}
+              <div
+                style={{
+                  background: "rgba(74, 6, 28, 0.88)",
+                  color: "#FFFFFF",
+                  padding: "0.25rem 0.625rem",
+                  borderRadius: 99,
+                  fontSize: "0.75rem",
+                  fontWeight: 700,
+                  backdropFilter: "blur(4px)",
+                }}
+              >
+                {candidate.category}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Photo: Dual Photo for Couple, Single Photo for Individual */}
           {isCouple ? (
