@@ -114,22 +114,36 @@ export function extractYouTubeVideoId(input?: string | null): YouTubeParseResult
   };
 }
 
+export interface YouTubeEmbedOptions {
+  autoplay?: boolean;
+  mute?: boolean;
+  enablejsapi?: boolean;
+  playsinline?: boolean;
+  controls?: boolean;
+}
+
 /**
  * Builds the privacy-friendly YouTube embed URL using youtube-nocookie.com.
- * Autoplay is disabled by default to respect browser policies and user experience.
+ * Supports configurable autoplay, mute (required for unprompted browser autoplay),
+ * playsinline (for mobile Safari/Chrome), and enablejsapi (for iframe postMessage controls).
  */
 export function buildYouTubeEmbedUrl(
   videoId: string,
-  options?: { autoplay?: boolean }
+  options?: YouTubeEmbedOptions
 ): string {
   if (!isValidYouTubeId(videoId)) return "";
   const params = new URLSearchParams({
     autoplay: options?.autoplay ? "1" : "0",
+    mute: options?.mute ? "1" : "0",
+    playsinline: "1",
     rel: "0",
     modestbranding: "1",
-    playsinline: "1",
+    enablejsapi: options?.enablejsapi ? "1" : "0",
     origin: typeof window !== "undefined" ? window.location.origin : "https://pairuporleave.com",
   });
+  if (options?.controls === false) {
+    params.set("controls", "0");
+  }
   return `https://www.youtube-nocookie.com/embed/${encodeURIComponent(videoId)}?${params.toString()}`;
 }
 

@@ -10,6 +10,7 @@ import { ScrollToTop } from "@/components/layout/ScrollToTop";
 
 // Critical landing page: statically imported for immediate Hero render
 import { HomePage } from "@/pages/HomePage";
+import { AutoVideoOverlay } from "@/components/video/AutoVideoOverlay";
 
 // Code-split secondary public pages (lazy loaded on navigation)
 const CandidatesPage = lazy(() => import("@/pages/CandidatesPage").then(m => ({ default: m.CandidatesPage })));
@@ -71,6 +72,7 @@ function PublicLayout({ children }: { children: React.ReactNode }) {
       {children}
       <Footer />
       <MobileStickyVote />
+      <AutoVideoOverlay />
     </>
   );
 }

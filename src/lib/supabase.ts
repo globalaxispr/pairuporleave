@@ -1050,6 +1050,7 @@ export interface LiveShowSettings {
   description: string | null;
   scheduled_start_time: string | null;
   channel_url: string;
+  auto_open_overlay: boolean;
   created_at?: string;
   updated_at?: string;
   updated_by?: string | null;
@@ -1065,6 +1066,7 @@ export const DEFAULT_LIVE_SHOW_SETTINGS: LiveShowSettings = {
   description: "Watch the official PAIR UP OR LEAVE live broadcast. Follow the couples, individual candidates, and live drama as voting unfolds.",
   scheduled_start_time: null,
   channel_url: "https://youtube.com/@pairuporleave",
+  auto_open_overlay: false,
 };
 
 const LIVE_SHOW_STORAGE_KEY = "vote_live_show_settings";
@@ -1127,6 +1129,7 @@ export async function fetchLiveShowSettings(): Promise<LiveShowSettings> {
         description: data.description ?? DEFAULT_LIVE_SHOW_SETTINGS.description,
         scheduled_start_time: data.scheduled_start_time ?? null,
         channel_url: data.channel_url || DEFAULT_LIVE_SHOW_SETTINGS.channel_url,
+        auto_open_overlay: data.auto_open_overlay ?? DEFAULT_LIVE_SHOW_SETTINGS.auto_open_overlay,
         created_at: data.created_at,
         updated_at: data.updated_at,
         updated_by: data.updated_by,
@@ -1176,6 +1179,7 @@ export async function updateLiveShowSettings(
         description: updated.description,
         scheduled_start_time: updated.scheduled_start_time,
         channel_url: updated.channel_url,
+        auto_open_overlay: updated.auto_open_overlay,
         updated_at: updated.updated_at,
       })
       .select()
@@ -1186,7 +1190,7 @@ export async function updateLiveShowSettings(
       return {
         success: true,
         data: updated,
-        error: `Saved in browser session, but database update returned: ${error.message}. Please verify migration 10 is executed in Supabase.`,
+        error: `Saved in browser session, but database update returned: ${error.message}. Please verify migration 11 is executed in Supabase.`,
       };
     }
 

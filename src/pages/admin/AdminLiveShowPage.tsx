@@ -12,9 +12,11 @@ import {
   RefreshCw,
   Clock,
   Tv,
+  Sparkles,
 } from "lucide-react";
 import { YouTubeIcon } from "@/components/ui/YouTubeIcon";
 import { AdminLayout } from "@/components/admin/AdminLayout";
+import { AutoVideoOverlay } from "@/components/video/AutoVideoOverlay";
 import {
   fetchLiveShowSettings,
   updateLiveShowSettings,
@@ -27,6 +29,7 @@ import {
   buildYouTubeEmbedUrl,
   getYouTubeThumbnailUrl,
   getYouTubeWatchUrl,
+  isValidYouTubeId,
   OFFICIAL_YOUTUBE_CHANNEL,
   OFFICIAL_YOUTUBE_HANDLE,
 } from "@/lib/youtube";
@@ -39,6 +42,7 @@ export function AdminLiveShowPage() {
 
   // Form local state
   const [isEnabled, setIsEnabled] = useState(true);
+  const [autoOpenOverlay, setAutoOpenOverlay] = useState(false);
   const [status, setStatus] = useState<LiveShowStatus>("offline");
   const [videoUrlInput, setVideoUrlInput] = useState("");
   const [title, setTitle] = useState("");
@@ -55,6 +59,7 @@ export function AdminLiveShowPage() {
         const data = await fetchLiveShowSettings();
         setSettings(data);
         setIsEnabled(data.is_enabled);
+        setAutoOpenOverlay(Boolean(data.auto_open_overlay));
         setStatus(data.status);
         setVideoUrlInput(data.video_url || data.video_id || "");
         setTitle(data.title || "");
@@ -94,6 +99,7 @@ export function AdminLiveShowPage() {
     try {
       const payload: Partial<LiveShowSettings> = {
         is_enabled: isEnabled,
+        auto_open_overlay: autoOpenOverlay,
         status: status,
         video_id: parsedVideoId || null,
         video_url: videoUrlInput.trim() || null,
@@ -324,7 +330,130 @@ export function AdminLiveShowPage() {
                 />
               </div>
 
-              {/* 2. Broadcast Status Selector (3 States) */}
+              {/* 2. Auto-Open Video on Website Switch */}
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.75rem",
+                  padding: "1.25rem",
+                  borderRadius: 14,
+                  background: autoOpenOverlay ? "#FFF5F7" : "#F9F9FB",
+                  border: autoOpenOverlay ? "1.5px solid #FF5475" : "1px solid #F0DCE2",
+                  transition: "all 0.2s ease",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "1rem" }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                      <label
+                        htmlFor="auto-overlay-toggle"
+                        style={{
+                          display: "block",
+                          fontSize: "0.9375rem",
+                          fontWeight: 800,
+                          color: "#24131A",
+                          cursor: "pointer",
+                        }}
+                      >
+                        Auto-Open Video on Website
+                      </label>
+                      <span
+                        style={{
+                          fontSize: "0.6875rem",
+                          fontWeight: 800,
+                          padding: "0.15rem 0.5rem",
+                          borderRadius: 6,
+                          background: autoOpenOverlay ? "#FFE1E8" : "#EDECEF",
+                          color: autoOpenOverlay ? "#7A0C2E" : "#6B6870",
+                          letterSpacing: "0.04em",
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        {autoOpenOverlay ? "Overlay Enabled" : "Overlay Disabled"}
+                      </span>
+                    </div>
+                    <p style={{ fontSize: "0.8125rem", color: "#6B6870", margin: "0.35rem 0 0", lineHeight: 1.5 }}>
+                      When visitors enter the website, automatically open this configured video in a cinema overlay modal with autoplay (muted by default per browser autoplay policy with one-click sound enablement).
+                    </p>
+                  </div>
+
+                  <input
+                    id="auto-overlay-toggle"
+                    type="checkbox"
+                    checked={autoOpenOverlay}
+                    onChange={(e) => setAutoOpenOverlay(e.target.checked)}
+                    style={{
+                      width: 22,
+                      height: 22,
+                      accentColor: "#E51B3E",
+                      cursor: "pointer",
+                      marginTop: 2,
+                    }}
+                  />
+                </div>
+
+                {/* Auto-Open Overlay Actions and Details */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    paddingTop: "0.75rem",
+                    borderTop: "1px dashed rgba(240, 220, 226, 0.8)",
+                    flexWrap: "wrap",
+                    gap: "0.5rem",
+                  }}
+                >
+                  <div style={{ fontSize: "0.75rem", color: "#7A0C2E", fontWeight: 600 }}>
+                    {autoOpenOverlay
+                      ? "✓ Overlay triggers once per visitor browser session (sessionStorage protected)."
+                      : "• When disabled, the video only renders inside the homepage section."}
+                  </div>
+
+                  {parsedVideoId && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        window.dispatchEvent(
+                          new CustomEvent("pairup:preview-overlay", {
+                            detail: {
+                              ...settings,
+                              is_enabled: isEnabled,
+                              auto_open_overlay: true,
+                              status: status,
+                              video_id: parsedVideoId,
+                              video_url: videoUrlInput.trim(),
+                              title: title.trim() || DEFAULT_LIVE_SHOW_SETTINGS.title,
+                              description: description.trim() || null,
+                              channel_url: channelUrl.trim() || OFFICIAL_YOUTUBE_CHANNEL,
+                            },
+                          })
+                        );
+                      }}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "0.375rem",
+                        padding: "0.35rem 0.75rem",
+                        borderRadius: 8,
+                        background: "#7A0C2E",
+                        color: "#FFFFFF",
+                        fontSize: "0.75rem",
+                        fontWeight: 700,
+                        border: "none",
+                        cursor: "pointer",
+                        boxShadow: "0 2px 6px rgba(122, 12, 46, 0.25)",
+                      }}
+                    >
+                      <Sparkles size={12} color="#FF5475" />
+                      <span>Test Video Overlay Modal</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* 3. Broadcast Status Selector (3 States) */}
               <div>
                 <label
                   style={{
@@ -692,6 +821,7 @@ export function AdminLiveShowPage() {
                   type="button"
                   onClick={() => {
                     setIsEnabled(settings.is_enabled);
+                    setAutoOpenOverlay(Boolean(settings.auto_open_overlay));
                     setStatus(settings.status);
                     setVideoUrlInput(settings.video_url || settings.video_id || "");
                     setTitle(settings.title || "");
@@ -779,18 +909,32 @@ export function AdminLiveShowPage() {
                     Live Preview
                   </span>
                 </div>
-                <span
-                  style={{
-                    fontSize: "0.6875rem",
-                    fontWeight: 700,
-                    padding: "0.2rem 0.5rem",
-                    borderRadius: 6,
-                    background: isEnabled ? "#DCFCE7" : "#FEE2E2",
-                    color: isEnabled ? "#15803D" : "#B91C1C",
-                  }}
-                >
-                  {isEnabled ? "Visible on Homepage" : "Hidden from Homepage"}
-                </span>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.35rem", flexWrap: "wrap" }}>
+                  <span
+                    style={{
+                      fontSize: "0.6875rem",
+                      fontWeight: 700,
+                      padding: "0.2rem 0.5rem",
+                      borderRadius: 6,
+                      background: autoOpenOverlay ? "#FFE1E8" : "#EDECEF",
+                      color: autoOpenOverlay ? "#7A0C2E" : "#6B6870",
+                    }}
+                  >
+                    {autoOpenOverlay ? "Auto-Overlay: ON" : "Auto-Overlay: OFF"}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: "0.6875rem",
+                      fontWeight: 700,
+                      padding: "0.2rem 0.5rem",
+                      borderRadius: 6,
+                      background: isEnabled ? "#DCFCE7" : "#FEE2E2",
+                      color: isEnabled ? "#15803D" : "#B91C1C",
+                    }}
+                  >
+                    {isEnabled ? "Homepage: ON" : "Homepage: OFF"}
+                  </span>
+                </div>
               </div>
 
               {/* Preview Container replicating Homepage frame */}
@@ -968,6 +1112,9 @@ export function AdminLiveShowPage() {
           </div>
         </div>
       </div>
+
+      {/* Embedded instance of AutoVideoOverlay for admin live testing & preview */}
+      <AutoVideoOverlay />
     </AdminLayout>
   );
 }
