@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { X, Minus, Plus, Vote, Loader2, AlertCircle, Lock, Users, User } from "lucide-react";
-import { getVotePriceDollars, type PublicCandidate, getCandidateScore } from "@/lib/supabase";
+import { getVotePriceDollars, type PublicCandidate, getCandidateScore, supabaseUrl, supabaseAnonKey } from "@/lib/supabase";
 import { formatNumber } from "@/lib/utils";
 
 interface VoteModalProps {
@@ -14,8 +14,6 @@ export function VoteModal({ candidate, onClose }: VoteModalProps) {
   const [quantity, setQuantity] = useState(10);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
 
   const isCouple = candidate.candidate_type === "couple";
   const unitPrice = getVotePriceDollars(candidate.candidate_type);
@@ -48,7 +46,8 @@ export function VoteModal({ candidate, onClose }: VoteModalProps) {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            "apikey": supabaseAnonKey,
+            Authorization: `Bearer ${supabaseAnonKey}`,
           },
           body: JSON.stringify({
             candidate_id: candidate.id,
@@ -57,10 +56,10 @@ export function VoteModal({ candidate, onClose }: VoteModalProps) {
         }
       );
 
-      const data = (await resp.json()) as { url?: string; error?: string };
+      const data = (await resp.json()) as { url?: string; error?: string; message?: string };
 
       if (!resp.ok || !data.url) {
-        throw new Error(data.error ?? "Failed to create checkout session");
+        throw new Error(data.error || data.message || "Failed to create checkout session");
       }
 
       window.location.href = data.url;
@@ -69,7 +68,7 @@ export function VoteModal({ candidate, onClose }: VoteModalProps) {
       setError(msg);
       setLoading(false);
     }
-  }, [loading, quantity, candidate.id, supabaseUrl]);
+  }, [loading, quantity, candidate.id]);
 
   return (
     <div

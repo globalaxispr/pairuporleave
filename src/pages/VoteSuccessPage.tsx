@@ -3,6 +3,7 @@ import { useSearchParams, Link } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { CheckCircle, Vote, Loader2, AlertCircle } from "lucide-react";
 import { formatNumber, formatCurrency } from "@/lib/utils";
+import { supabaseUrl, supabaseAnonKey } from "@/lib/supabase";
 
 interface PaymentDetails {
   status: string;
@@ -19,8 +20,6 @@ export function VoteSuccessPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
-
   useEffect(() => {
     if (!sessionId) {
       setError("Invalid session. No session ID found.");
@@ -34,13 +33,14 @@ export function VoteSuccessPage() {
           `${supabaseUrl}/functions/v1/verify-payment?session_id=${encodeURIComponent(sessionId!)}`,
           {
             headers: {
-              Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+              "apikey": supabaseAnonKey,
+              Authorization: `Bearer ${supabaseAnonKey}`,
             },
           }
         );
-        const data = await resp.json() as PaymentDetails & { error?: string };
+        const data = (await resp.json()) as PaymentDetails & { error?: string; message?: string };
         if (!resp.ok || data.error) {
-          throw new Error(data.error ?? "Could not verify payment.");
+          throw new Error(data.error || data.message || "Could not verify payment.");
         }
         setDetails(data);
       } catch (err) {
@@ -51,7 +51,7 @@ export function VoteSuccessPage() {
     }
 
     void verify();
-  }, [sessionId, supabaseUrl]);
+  }, [sessionId]);
 
   return (
     <>
