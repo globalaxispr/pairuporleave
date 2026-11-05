@@ -1,5 +1,6 @@
 import { Helmet } from "react-helmet-async";
 import { Mail, Shield, FileText } from "lucide-react";
+import { IS_PLATFORM_SERVICE_FEE_ENABLED } from "@/lib/supabase";
 import { SITE_URL } from "@/lib/utils";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -357,17 +358,44 @@ export function TermsPage() {
 
           {/* 3 */}
           <h2 style={sectionTitle}>3. Voting Rules &amp; Pricing</h2>
+          {IS_PLATFORM_SERVICE_FEE_ENABLED ? (
+            <>
+              <p style={bodyText}>
+                <strong>Individual candidates:</strong> Each vote has a base value of $1.00 USD ($1.34
+                USD total for a single-vote purchase including the mandatory Platform Service Fee). The
+                candidate receives the exact number of votes purchased.
+              </p>
+              <p style={bodyText}>
+                <strong>Couple entries:</strong> Each vote has a base value of $2.00 USD ($2.37 USD
+                total for a single-vote purchase including the mandatory Platform Service Fee). The
+                couple receives the exact number of votes purchased.
+              </p>
+              <p style={bodyText}>
+                <strong>Platform Service Fee:</strong> Every checkout transaction includes a mandatory
+                Platform Service Fee calculated in integer cents as{" "}
+                <code>ceil((subtotal + $0.30) / (1 - 0.029)) - subtotal</code> to help cover payment
+                processing and platform operations. The Platform Service Fee is a commercial service
+                charge (not a government tax) and never increases the number of votes credited. The
+                complete itemized breakdown (Base Vote Subtotal, Platform Service Fee, any applicable
+                government tax if required, and Total Due) is displayed prior to payment authorization.
+              </p>
+            </>
+          ) : (
+            <>
+              <p style={bodyText}>
+                <strong>Individual candidates:</strong> Each vote costs $1.00 USD. The candidate
+                receives the exact number of votes purchased.
+              </p>
+              <p style={bodyText}>
+                <strong>Couple entries:</strong> Each vote costs $2.00 USD. The couple receives the
+                exact number of votes purchased.
+              </p>
+            </>
+          )}
           <p style={bodyText}>
-            <strong>Individual candidates:</strong> Each vote costs $1.00 USD. The candidate
-            receives exactly the number of votes purchased.
-          </p>
-          <p style={bodyText}>
-            <strong>Couple entries:</strong> Each vote costs $2.00 USD. The couple receives exactly
-            the number of votes purchased.
-          </p>
-          <p style={bodyText}>
-            There is no maximum vote purchase limit per transaction. You may vote for the same
-            candidate or couple multiple times. Votes are non-transferable between candidates.
+            There is no maximum lifetime vote purchase limit per voter (up to 1,000 votes per single
+            checkout transaction). You may vote for the same candidate or couple multiple times.
+            Votes are non-transferable between candidates.
           </p>
 
           {/* 4 */}

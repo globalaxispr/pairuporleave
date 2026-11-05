@@ -10,6 +10,7 @@ import { HowItWorksSection } from "@/components/home/HowItWorksSection";
 import { LiveResultsPreview } from "@/components/home/LiveResultsPreview";
 import { WhyVoteSection } from "@/components/home/WhyVoteSection";
 import { FinalCTASection } from "@/components/home/FinalCTASection";
+import { IS_PLATFORM_SERVICE_FEE_ENABLED } from "@/lib/supabase";
 import { SITE_URL } from "@/lib/utils";
 
 export function HomePage() {
@@ -19,10 +20,10 @@ export function HomePage() {
         <title>Pair Up or Leave — Vote for Your Favorite Couples & Candidates</title>
         <meta
           name="description"
-          content="Pair Up or Leave is the official voting platform. Support your favorite couples and candidates with secure Stripe payments. $1/vote for individuals, $2/vote for couples. No account required."
+          content={IS_PLATFORM_SERVICE_FEE_ENABLED ? "Pair Up or Leave is the official voting platform. Support your favorite couples and candidates with secure Stripe payments. $1/vote base ($1.34 w/ service fee for 1 vote) for individuals, $2/vote base ($2.37 w/ service fee for 1 vote) for couples. No account required." : "Pair Up or Leave is the official voting platform. Support your favorite couples and candidates with secure Stripe payments. $1/vote for individuals, $2/vote for couples. No account required."}
         />
         <meta property="og:title" content="Pair Up or Leave — Vote for Your Favorite Couples & Candidates" />
-        <meta property="og:description" content="Support your favorite couples and candidates. $1/vote for individuals, $2/vote for couples. Secure payments via Stripe." />
+        <meta property="og:description" content={IS_PLATFORM_SERVICE_FEE_ENABLED ? "Support your favorite couples and candidates. $1/vote base ($1.34 w/ fee) for individuals, $2/vote base ($2.37 w/ fee) for couples. Secure payments via Stripe." : "Support your favorite couples and candidates. $1/vote for individuals, $2/vote for couples. Secure payments via Stripe."} />
         <meta property="og:url" content={`${SITE_URL}/`} />
         <link rel="canonical" href={`${SITE_URL}/`} />
       </Helmet>

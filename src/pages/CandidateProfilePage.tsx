@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { Vote, ArrowLeft, TrendingUp, User, MessageSquare, Eye } from "lucide-react";
-import { supabase, type PublicCandidate, fetchCandidateByIdSafe, getCandidateScore, pickPublicFields } from "@/lib/supabase";
+import { supabase, type PublicCandidate, fetchCandidateByIdSafe, getCandidateScore, pickPublicFields, getSingleVoteAllInPriceFormatted, IS_PLATFORM_SERVICE_FEE_ENABLED } from "@/lib/supabase";
 import { formatNumber, SITE_URL } from "@/lib/utils";
 import { VoteModal } from "@/components/voting/VoteModal";
 import { LoadingState } from "@/components/ui/LoadingState";
@@ -69,7 +69,7 @@ export function CandidateProfilePage() {
         <title>{candidate.name} — Pair Up or Leave</title>
         <meta name="description" content={`Support ${candidate.name} — ${candidate.position}. ${candidate.description ?? ""} Vote now on Pair Up or Leave.`} />
         <meta property="og:title" content={`${candidate.name} — Pair Up or Leave`} />
-        <meta property="og:description" content={`Support ${candidate.name} — ${candidate.position}. Cast your votes now on Pair Up or Leave. ${isCouple ? "$2/vote (couple entry)" : "$1/vote (individual entry)"}.`} />
+        <meta property="og:description" content={`Support ${candidate.name} — ${candidate.position}. Cast your votes now on Pair Up or Leave. ${IS_PLATFORM_SERVICE_FEE_ENABLED ? (isCouple ? "$2/vote base ($2.37 total for 1 vote w/ service fee)" : "$1/vote base ($1.34 total for 1 vote w/ service fee)") : (isCouple ? "$2/vote" : "$1/vote")}.`} />
         <meta property="og:url" content={`${SITE_URL}/candidate/${candidate.id}`} />
         <link rel="canonical" href={`${SITE_URL}/candidate/${candidate.id}`} />
         {candidate.photo_url && <meta property="og:image" content={candidate.photo_url} />}
@@ -232,7 +232,9 @@ export function CandidateProfilePage() {
                   {formatNumber(getCandidateScore(candidate))}
                 </div>
                 <div style={{ fontSize: "0.8125rem", color: "#7A0C2E", fontWeight: 700, marginTop: "0.25rem" }}>
-                  ${isCouple ? "2.00" : "1.00"} per vote · {isCouple ? "Couple Entry" : "Individual Entry"}
+                  {IS_PLATFORM_SERVICE_FEE_ENABLED
+                    ? `$${isCouple ? "2.00" : "1.00"}/vote base (${getSingleVoteAllInPriceFormatted(candidate.candidate_type)} total for 1 vote w/ fee) · ${isCouple ? "Couple Entry" : "Individual Entry"}`
+                    : `$${isCouple ? "2.00" : "1.00"} per vote · ${isCouple ? "Couple Entry" : "Individual Entry"}`}
                 </div>
               </div>
 

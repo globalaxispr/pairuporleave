@@ -1,14 +1,21 @@
 import Stripe from "npm:stripe@^17";
 import { createClient } from "npm:@supabase/supabase-js@^2";
 
-const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") as string, {
-  apiVersion: "2024-06-20",
-});
+const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
+const stripe = stripeSecretKey
+  ? new Stripe(stripeSecretKey, { apiVersion: "2024-06-20" })
+  : null;
 
-const supabaseAdmin = createClient(
-  Deno.env.get("SUPABASE_URL") as string,
-  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") as string
-);
+const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+
+
+const supabaseAdminKey =
+  Deno.env.get("SUPABASE_ADMIN_SECRET_KEY") ??
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ??
+  "";
+const supabaseAdmin = (supabaseUrl && supabaseAdminKey)
+  ? createClient(supabaseUrl, supabaseAdminKey)
+  : null;
 
 // ====================================================
 // SECURITY: Maximum votes allowed per single transaction.
@@ -17,15 +24,64 @@ const supabaseAdmin = createClient(
 // ====================================================
 const MAX_VOTES_PER_TRANSACTION = 1000;
 const MIN_VOTES_PER_TRANSACTION = 1;
+const ALL_IN_PRICING_VERSION = "all_in_v1";
+
+export interface VotePriceBreakdownCents {
+  unitPriceCents: 100 | 200;
+  voteQuantity: number;
+  subtotalCents: number;
+  serviceFeeCents: number;
+  taxCents: number;
+  totalAmountCents: number;
+}
+
+/**
+ * Authoritative integer-cent pricing calculation.
+ * Base vote price: Individual = 100 cents ($1.00), Couple = 200 cents ($2.00).
+ * Platform Service Fee (when enabled): ceil((subtotalCents + 30) / (1 - 0.029)) - subtotalCents.
+ * Fee never increases vote_quantity.
+ */
+export function calculateVotePricingCents(
+  candidateType: "individual" | "couple",
+  voteQuantity: number,
+  applyServiceFee: boolean,
+  taxCents = 0
+): VotePriceBreakdownCents {
+  const unitPriceCents: 100 | 200 = candidateType === "couple" ? 200 : 100;
+  const subtotalCents = voteQuantity * unitPriceCents;
+  const totalBeforeTaxCents = applyServiceFee
+    ? Math.ceil((subtotalCents + 30) / (1 - 0.029))
+    : subtotalCents;
+  const serviceFeeCents = totalBeforeTaxCents - subtotalCents;
+  const totalAmountCents = subtotalCents + serviceFeeCents + taxCents;
+
+  return {
+    unitPriceCents,
+    voteQuantity,
+    subtotalCents,
+    serviceFeeCents,
+    taxCents,
+    totalAmountCents,
+  };
+}
 
 // Restrict CORS to the configured production domain.
-// Falls back to permissive wildcard only if not configured (local dev safety).
+// Falls back to request origin or permissive wildcard only if not configured (local dev safety).
 const ALLOWED_ORIGIN = Deno.env.get("SITE_URL") ?? "";
 
 function getCorsHeaders(requestOrigin: string | null): HeadersInit {
-  // If SITE_URL is set, only allow that origin (production hardening).
-  // If not set (local dev), allow the request origin as a fallback.
-  const allowedOrigin = ALLOWED_ORIGIN || requestOrigin || "*";
+  let allowedOrigin = ALLOWED_ORIGIN || requestOrigin || "*";
+  if (requestOrigin && ALLOWED_ORIGIN) {
+    try {
+      const originHost = new URL(requestOrigin).hostname.replace(/^www\./, "");
+      const allowedHost = new URL(ALLOWED_ORIGIN).hostname.replace(/^www\./, "");
+      if (originHost === allowedHost) {
+        allowedOrigin = requestOrigin;
+      }
+    } catch {
+      // Fall back to configured ALLOWED_ORIGIN
+    }
+  }
   return {
     "Access-Control-Allow-Origin": allowedOrigin,
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -87,6 +143,14 @@ Deno.serve(async (req) => {
     );
   }
 
+  if (!stripe || !supabaseAdmin) {
+    console.error("create-checkout-session: Missing STRIPE_SECRET_KEY or Supabase credentials in Edge Function environment");
+    return new Response(
+      JSON.stringify({ error: "Payment service is currently unavailable. Gateway configuration pending." }),
+      { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
   // Enforce IP rate limiting
   const clientIp =
     req.headers.get("cf-connecting-ip") ||
@@ -109,8 +173,13 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const body = await req.json() as { candidate_id?: string; vote_quantity?: number };
-    const { candidate_id, vote_quantity } = body;
+    const body = (await req.json()) as {
+      candidate_id?: string;
+      vote_quantity?: number;
+      pricing_version?: string;
+      client_total_cents?: number;
+    };
+    const { candidate_id, vote_quantity, pricing_version, client_total_cents } = body;
 
     // Validate candidate_id — must be a valid UUID (prevents injection)
     if (!candidate_id || typeof candidate_id !== "string" || !UUID_REGEX.test(candidate_id)) {
@@ -161,11 +230,19 @@ Deno.serve(async (req) => {
     // Validate that competition is active and currently within voting window.
     // Never trust frontend time or client status.
     // ====================================================
-    const { data: schedule } = await supabaseAdmin
+    const { data: rawSchedule } = await supabaseAdmin
       .from("competition_schedule")
-      .select("id, name, is_enabled, start_time, end_time, timezone")
+      .select("*")
       .eq("id", "active")
       .maybeSingle();
+
+    const schedule = rawSchedule ? {
+      name: (rawSchedule as { competition_name?: string; name?: string }).competition_name || (rawSchedule as { competition_name?: string; name?: string }).name || "PAIR UP OR LEAVE",
+      is_enabled: (rawSchedule as { is_published?: boolean; is_enabled?: boolean }).is_published ?? (rawSchedule as { is_published?: boolean; is_enabled?: boolean }).is_enabled ?? true,
+      start_time: rawSchedule.start_time,
+      end_time: rawSchedule.end_time,
+      timezone: rawSchedule.timezone,
+    } : null;
 
     if (schedule && schedule.is_enabled) {
       const now = Date.now();
@@ -192,33 +269,81 @@ Deno.serve(async (req) => {
     }
 
     // ====================================================
-    // SERVER-SIDE PRICING (authoritative — never from client)
-    // Individual: 1 vote = $1 (100 cents)
-    // Couple:     1 vote = $2 (200 cents)
+    // SERVER-SIDE PRICING & SAFE FEE ACTIVATION GATE
+    // Individual base: 1 vote = $1.00 (100 cents)
+    // Couple base:     1 vote = $2.00 (200 cents)
+    //
+    // SAFETY REQUIREMENT: The backend MUST NOT charge mandatory platform
+    // service fees unless:
+    //   1. Server flag ENABLE_PLATFORM_SERVICE_FEE is not "false", AND
+    //   2. The request originates from the updated frontend that prominently
+    //      displays the mandatory all-in price breakdown (pricing_version === "all_in_v1").
     // ====================================================
     const candidateType = (candidate.candidate_type as string) === "couple" ? "couple" : "individual";
-    const unitPriceCents = candidateType === "couple" ? 200 : 100;
-    const amountCents = vote_quantity * unitPriceCents;
-    const candidateDisplayName = candidate.display_name || candidate.name;
+    // Default to "false" (disabled) until ENABLE_PLATFORM_SERVICE_FEE="true" is explicitly set in Step 4
+    const serverFeeFlagEnabled =
+      (Deno.env.get("ENABLE_PLATFORM_SERVICE_FEE") ?? "false").toLowerCase() === "true";
+    const clientDisclosedAllInPricing = pricing_version === ALL_IN_PRICING_VERSION;
+    const applyServiceFee = serverFeeFlagEnabled && clientDisclosedAllInPricing;
 
+    const pricing = calculateVotePricingCents(candidateType, vote_quantity, applyServiceFee, 0);
+    const {
+      unitPriceCents,
+      subtotalCents,
+      serviceFeeCents,
+      taxCents,
+      totalAmountCents,
+    } = pricing;
+
+    if (
+      client_total_cents !== undefined &&
+      (!Number.isInteger(client_total_cents) || client_total_cents !== totalAmountCents)
+    ) {
+      return new Response(
+        JSON.stringify({
+          error:
+            "Displayed price does not match current server pricing. Please refresh the page and try again.",
+        }),
+        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const candidateDisplayName = candidate.display_name || candidate.name;
     const origin = requestOrigin ?? (ALLOWED_ORIGIN || "https://pairuporleave.com");
+
+    const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [
+      {
+        price_data: {
+          currency: "usd",
+          product_data: {
+            name: `${vote_quantity} Vote${vote_quantity > 1 ? "s" : ""} for ${candidateDisplayName}`,
+            description: `${candidate.category} · ${candidateType === "couple" ? "Couple Candidate ($2.00/vote base)" : "Individual Candidate ($1.00/vote base)"} · Pair Up or Leave`,
+          },
+          unit_amount: unitPriceCents,
+        },
+        quantity: vote_quantity,
+      },
+    ];
+
+    if (serviceFeeCents > 0) {
+      lineItems.push({
+        price_data: {
+          currency: "usd",
+          product_data: {
+            name: "Platform Service Fee",
+            description:
+              "Mandatory platform service fee (does not increase votes credited; not a government tax)",
+          },
+          unit_amount: serviceFeeCents,
+        },
+        quantity: 1,
+      });
+    }
 
     // Create Stripe Checkout Session — amount and pricing set entirely server-side
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
-      line_items: [
-        {
-          price_data: {
-            currency: "usd",
-            product_data: {
-              name: `${vote_quantity} Vote${vote_quantity > 1 ? "s" : ""} for ${candidateDisplayName}`,
-              description: `${candidate.category} · ${candidateType === "couple" ? "Couple Candidate ($2/vote)" : "Individual Candidate ($1/vote)"} · Pair Up or Leave`,
-            },
-            unit_amount: unitPriceCents,
-          },
-          quantity: vote_quantity,
-        },
-      ],
+      line_items: lineItems,
       mode: "payment",
       success_url: `${origin}/vote/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/vote/cancel`,
@@ -227,7 +352,11 @@ Deno.serve(async (req) => {
         candidate_type: candidateType,
         vote_quantity: vote_quantity.toString(),
         vote_price: unitPriceCents.toString(),
-        expected_amount_cents: amountCents.toString(),
+        subtotal_cents: subtotalCents.toString(),
+        service_fee_cents: serviceFeeCents.toString(),
+        tax_cents: taxCents.toString(),
+        expected_amount_cents: totalAmountCents.toString(),
+        pricing_version: applyServiceFee ? ALL_IN_PRICING_VERSION : "legacy_base_v0",
         competition_name: schedule?.name ?? "PAIR UP OR LEAVE",
         competition_end_time: schedule?.end_time ?? "",
       },
@@ -240,14 +369,16 @@ Deno.serve(async (req) => {
       candidate_type: candidateType,
       vote_price: unitPriceCents,
       vote_quantity,
-      amount: amountCents,
+      subtotal_amount: subtotalCents,
+      service_fee_amount: serviceFeeCents,
+      tax_amount: taxCents,
+      amount: totalAmountCents,
       currency: "usd",
       status: "pending",
     });
 
     if (insertErr) {
       console.error("Failed to insert pending payment record:", insertErr.message);
-      // Do not expose DB error details to client
       return new Response(
         JSON.stringify({ error: "Internal server error" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }

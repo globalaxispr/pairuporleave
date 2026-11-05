@@ -83,6 +83,61 @@ export function getVotePriceCents(type?: CandidateType | string | null): number 
 }
 
 /**
+ * Feature flag controlling whether the mandatory Platform Service Fee is active in the UI
+ * and sent with pricing_version="all_in_v1" to create-checkout-session.
+ * Defaults to false (disabled) until VITE_ENABLE_PLATFORM_SERVICE_FEE="true" is explicitly set.
+ */
+export const IS_PLATFORM_SERVICE_FEE_ENABLED =
+  import.meta.env.VITE_ENABLE_PLATFORM_SERVICE_FEE === "true";
+
+export const PRICING_VERSION = IS_PLATFORM_SERVICE_FEE_ENABLED ? "all_in_v1" : "legacy_base_v0";
+
+export interface VotePriceBreakdownCents {
+  unitPriceCents: 100 | 200;
+  voteQuantity: number;
+  subtotalCents: number;
+  serviceFeeCents: number;
+  taxCents: number;
+  totalAmountCents: number;
+}
+
+/**
+ * Canonical integer-cent pricing calculation shared with create-checkout-session.
+ * Base vote price: Individual = 100 cents ($1.00), Couple = 200 cents ($2.00).
+ * Platform Service Fee: ceil((subtotalCents + 30) / (1 - 0.029)) - subtotalCents.
+ * The service fee NEVER increases voteQuantity.
+ */
+export function calculateVotePricingCents(
+  type?: CandidateType | string | null,
+  voteQuantity = 1,
+  applyServiceFee = IS_PLATFORM_SERVICE_FEE_ENABLED,
+  taxCents = 0
+): VotePriceBreakdownCents {
+  const unitPriceCents: 100 | 200 = type === "couple" ? 200 : 100;
+  const safeQty = Math.max(1, Math.min(1000, Math.floor(voteQuantity || 1)));
+  const subtotalCents = safeQty * unitPriceCents;
+  const totalBeforeTaxCents = applyServiceFee
+    ? Math.ceil((subtotalCents + 30) / (1 - 0.029))
+    : subtotalCents;
+  const serviceFeeCents = totalBeforeTaxCents - subtotalCents;
+  const totalAmountCents = subtotalCents + serviceFeeCents + taxCents;
+
+  return {
+    unitPriceCents,
+    voteQuantity: safeQty,
+    subtotalCents,
+    serviceFeeCents,
+    taxCents,
+    totalAmountCents,
+  };
+}
+
+export function getSingleVoteAllInPriceFormatted(type?: CandidateType | string | null): string {
+  const breakdown = calculateVotePricingCents(type, 1);
+  return `$${(breakdown.totalAmountCents / 100).toFixed(2)}`;
+}
+
+/**
  * PublicCandidate is the ONLY candidate shape ever sent to public pages/components.
  * It MUST NOT include: paid_votes, bonus_votes, penalty_points, total_votes,
  * or any other internal/admin field.
@@ -194,12 +249,12 @@ export type Database = {
           Database["public"]["Tables"]["candidates"]["Row"],
           "id" | "created_at" | "updated_at" | "total_votes" | "paid_votes" | "bonus_votes" | "penalty_points" | "current_score"
         > &
-          Partial<
-            Pick<
-              Database["public"]["Tables"]["candidates"]["Row"],
-              "total_votes" | "paid_votes" | "bonus_votes" | "penalty_points" | "current_score" | "candidate_type"
-            >
-          >;
+        Partial<
+          Pick<
+            Database["public"]["Tables"]["candidates"]["Row"],
+            "total_votes" | "paid_votes" | "bonus_votes" | "penalty_points" | "current_score" | "candidate_type"
+          >
+        >;
         Update: Partial<Database["public"]["Tables"]["candidates"]["Insert"]>;
       };
       payments: {
@@ -211,6 +266,9 @@ export type Database = {
           candidate_type?: string;
           vote_price?: number;
           vote_quantity: number;
+          subtotal_amount?: number;
+          service_fee_amount?: number;
+          tax_amount?: number;
           amount: number;
           currency: string;
           status: "pending" | "paid" | "failed" | "refunded";
@@ -798,8 +856,8 @@ export async function adjustCandidateScore({
   // Canonical ledger types: new administrative additions use ADMIN_ADD, deductions use ADMIN_REMOVE
   const targetType =
     (type === "BONUS" || type === "ADMIN_ADD") ? "ADMIN_ADD" :
-    (type === "PENALTY" || type === "ADMIN_REMOVE") ? "ADMIN_REMOVE" :
-    type;
+      (type === "PENALTY" || type === "ADMIN_REMOVE") ? "ADMIN_REMOVE" :
+        type;
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(candidateId);
 
   // 2. Database path (when targeting real Supabase candidate UUID)

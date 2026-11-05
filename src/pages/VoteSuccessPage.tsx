@@ -10,6 +10,10 @@ interface PaymentDetails {
   candidate_name: string;
   candidate_category: string;
   vote_quantity: number;
+  vote_price?: number;
+  subtotal_amount?: number;
+  service_fee_amount?: number;
+  tax_amount?: number;
   amount: number;
 }
 
@@ -139,7 +143,29 @@ export function VoteSuccessPage() {
                         </span>
                       ),
                     },
-                    { label: "Amount Paid", value: formatCurrency(details.amount) },
+                    ...(typeof details.subtotal_amount === "number" &&
+                    typeof details.service_fee_amount === "number" &&
+                    details.service_fee_amount > 0
+                      ? [
+                          {
+                            label: "Base Vote Subtotal",
+                            value: formatCurrency(details.subtotal_amount),
+                          },
+                          {
+                            label: "Platform Service Fee",
+                            value: formatCurrency(details.service_fee_amount),
+                          },
+                        ]
+                      : []),
+                    ...(typeof details.tax_amount === "number" && details.tax_amount > 0
+                      ? [
+                          {
+                            label: "Applicable Tax",
+                            value: formatCurrency(details.tax_amount),
+                          },
+                        ]
+                      : []),
+                    { label: "Total Paid", value: formatCurrency(details.amount) },
                   ].map(({ label, value }) => (
                     <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                       <span style={{ fontSize: "0.875rem", color: "#6B6870" }}>{label}</span>
