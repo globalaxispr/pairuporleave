@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Vote, TrendingUp, User, Eye } from "lucide-react";
-import { getVotePriceDollars, type PublicCandidate, getCandidateScore } from "@/lib/supabase";
+import { getVotePriceDollars, getSingleVoteAllInPriceFormatted, IS_PLATFORM_SERVICE_FEE_ENABLED, type PublicCandidate, getCandidateScore } from "@/lib/supabase";
 import { formatNumber } from "@/lib/utils";
 import { VoteModal } from "@/components/voting/VoteModal";
 
@@ -19,6 +19,7 @@ export function CandidateCard({ candidate, rank }: CandidateCardProps) {
   const isPaused = candidate.status === "paused";
   const isCouple = candidate.candidate_type === "couple";
   const pricePerVote = getVotePriceDollars(candidate.candidate_type);
+  const singleVoteAllIn = getSingleVoteAllInPriceFormatted(candidate.candidate_type);
 
   const initials = candidate.name
     .split(" ")
@@ -462,7 +463,7 @@ export function CandidateCard({ candidate, rank }: CandidateCardProps) {
                   border: "1px solid #F0DCE2",
                 }}
               >
-                ${pricePerVote}/vote
+                {IS_PLATFORM_SERVICE_FEE_ENABLED ? `$${pricePerVote}/vote (${singleVoteAllIn} w/ fee)` : `$${pricePerVote}/vote`}
               </span>
             </div>
             <span

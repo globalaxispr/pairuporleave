@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { Helmet } from "react-helmet-async";
-import { supabase, type PublicCandidate, fetchCandidatesSafe, getCandidateScore, pickPublicFields } from "@/lib/supabase";
+import { supabase, type PublicCandidate, fetchCandidatesSafe, getCandidateScore, pickPublicFields, IS_PLATFORM_SERVICE_FEE_ENABLED } from "@/lib/supabase";
 import { CandidateGrid } from "@/components/candidates/CandidateGrid";
 import { CandidateFilter } from "@/components/candidates/CandidateFilter";
 import { LoadingState } from "@/components/ui/LoadingState";
@@ -87,9 +87,9 @@ export function CandidatesPage() {
     <>
       <Helmet>
         <title>Candidates — Pair Up or Leave</title>
-        <meta name="description" content="Browse all candidates and couples on Pair Up or Leave and cast your votes. $1/vote for individuals, $2/vote for couples. No account required." />
+        <meta name="description" content={IS_PLATFORM_SERVICE_FEE_ENABLED ? "Browse all candidates and couples on Pair Up or Leave and cast your votes. $1/vote base ($1.34 w/ service fee for 1 vote) for individuals, $2/vote base ($2.37 w/ service fee for 1 vote) for couples. No account required." : "Browse all candidates and couples on Pair Up or Leave and cast your votes. $1/vote for individuals, $2/vote for couples. No account required."} />
         <meta property="og:title" content="Candidates — Pair Up or Leave" />
-        <meta property="og:description" content="Browse all candidates and couples on Pair Up or Leave and cast your votes. $1/vote for individuals, $2/vote for couples." />
+        <meta property="og:description" content={IS_PLATFORM_SERVICE_FEE_ENABLED ? "Browse all candidates and couples on Pair Up or Leave and cast your votes. $1/vote base ($1.34 w/ fee) for individuals, $2/vote base ($2.37 w/ fee) for couples." : "Browse all candidates and couples on Pair Up or Leave and cast your votes. $1/vote for individuals, $2/vote for couples."} />
         <meta property="og:url" content={`${SITE_URL}/candidates`} />
         <link rel="canonical" href={`${SITE_URL}/candidates`} />
       </Helmet>

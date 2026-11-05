@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Vote, Heart, X } from "lucide-react";
+import { IS_PLATFORM_SERVICE_FEE_ENABLED } from "@/lib/supabase";
 
 export function MobileStickyVote() {
   const location = useLocation();
@@ -77,7 +78,9 @@ export function MobileStickyVote() {
             <div style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
               <Heart size={13} color="#E51B3E" fill="#E51B3E" />
               <span style={{ fontSize: "0.8125rem", fontWeight: 800, color: "#24131A" }}>
-                1 Vote = $1 · Couples $2
+                {IS_PLATFORM_SERVICE_FEE_ENABLED
+                  ? "1 Vote: $1 ($1.34 w/ fee) · Couples: $2 ($2.37 w/ fee)"
+                  : "1 Vote = $1 · Couples = $2"}
               </span>
             </div>
             <span style={{ fontSize: "0.6875rem", color: "#6B6870" }}>

@@ -2,6 +2,7 @@ import { Helmet } from "react-helmet-async";
 import { HowItWorksSection } from "@/components/home/HowItWorksSection";
 import { FinalCTASection } from "@/components/home/FinalCTASection";
 import { Lock, DollarSign, Heart, Shield } from "lucide-react";
+import { IS_PLATFORM_SERVICE_FEE_ENABLED } from "@/lib/supabase";
 import { SITE_URL } from "@/lib/utils";
 
 const faqs = [
@@ -11,7 +12,9 @@ const faqs = [
   },
   {
     q: "How much does a vote cost?",
-    a: "$1.00 per vote for individual candidates, and $2.00 per vote for couple entries. There is no maximum limit. You can purchase as many votes as you'd like.",
+    a: IS_PLATFORM_SERVICE_FEE_ENABLED
+      ? "$1.00 base per vote for individual candidates ($1.34 total for 1 vote including the mandatory platform service fee) and $2.00 base per vote for couple entries ($2.37 total for 1 vote including the mandatory platform service fee). An itemized breakdown is shown before checkout, and the platform service fee never increases the number of votes credited."
+      : "$1.00 per vote for individual candidates and $2.00 per vote for couple entries. The complete total is shown before checkout.",
   },
   {
     q: "How are votes counted and verified?",
@@ -32,9 +35,9 @@ export function HowItWorksPage() {
     <>
       <Helmet>
         <title>How It Works — Pair Up or Leave</title>
-        <meta name="description" content="Learn how voting works on Pair Up or Leave. $1 for individuals, $2 for couples. No account required. Secure payments via Stripe." />
+        <meta name="description" content={IS_PLATFORM_SERVICE_FEE_ENABLED ? "Learn how voting works on Pair Up or Leave. $1/vote base ($1.34 total for 1 vote w/ service fee) for individuals, $2/vote base ($2.37 total for 1 vote w/ service fee) for couples. Secure payments via Stripe." : "Learn how voting works on Pair Up or Leave. $1/vote for individuals, $2/vote for couples. Secure payments via Stripe."} />
         <meta property="og:title" content="How It Works — Pair Up or Leave" />
-        <meta property="og:description" content="Everything you need to know about voting on Pair Up or Leave. $1/vote for individuals, $2/vote for couples. No account required. Payments via Stripe." />
+        <meta property="og:description" content={IS_PLATFORM_SERVICE_FEE_ENABLED ? "Everything you need to know about voting on Pair Up or Leave. $1/vote base ($1.34 total for 1 vote w/ fee) for individuals, $2/vote base ($2.37 total for 1 vote w/ fee) for couples." : "Everything you need to know about voting on Pair Up or Leave. $1/vote for individuals, $2/vote for couples."} />
         <meta property="og:url" content={`${SITE_URL}/how-it-works`} />
         <link rel="canonical" href={`${SITE_URL}/how-it-works`} />
       </Helmet>
@@ -111,7 +114,7 @@ export function HowItWorksPage() {
             </h2>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "1.5rem" }}>
               {[
-                { icon: DollarSign, title: "$1 Ind / $2 Couple", desc: "Clear, transparent pricing. No hidden fees.", color: "#7A0C2E", bg: "#FFE1E8" },
+                { icon: DollarSign, title: IS_PLATFORM_SERVICE_FEE_ENABLED ? "$1 Ind / $2 Couple Base" : "$1 Ind / $2 Couple", desc: IS_PLATFORM_SERVICE_FEE_ENABLED ? "Upfront all-in pricing: $1.34 total for 1 Ind vote ($1 base + $0.34 service fee); $2.37 for 1 Couple vote." : "Transparent pricing: $1.00 per vote for individual candidates and $2.00 per vote for couple entries.", color: "#7A0C2E", bg: "#FFE1E8" },
                 { icon: Lock, title: "No Account Needed", desc: "Vote without registration or login.", color: "#E51B3E", bg: "#FFF3F5" },
                 { icon: Shield, title: "Stripe Secured", desc: "PCI-compliant payments via Stripe.", color: "#7A0C2E", bg: "#FFE1E8" },
                 { icon: Heart, title: "Instant Counting", desc: "Votes appear within seconds of confirmation.", color: "#E51B3E", bg: "#FFF3F5" },

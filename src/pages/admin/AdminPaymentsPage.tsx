@@ -117,19 +117,29 @@ export function AdminPaymentsPage() {
             <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 800 }}>
               <thead>
                 <tr style={{ background: "#FFF8FA", borderBottom: "1px solid #F0DCE2" }}>
-                  {["Date", "Candidate", "Type", "Votes", "Price/Vote", "Total Paid", "Status", "Stripe Session ID"].map((h) => (
+                  {["Date", "Candidate", "Type", "Votes", "Price/Vote", "Base Subtotal", "Service Fee", "Total Paid", "Status", "Stripe Session ID"].map((h) => (
                     <th key={h} style={{ padding: "0.875rem 1rem", textAlign: "left", fontSize: "0.8125rem", fontWeight: 600, color: "#6B6870", textTransform: "uppercase", letterSpacing: "0.04em", whiteSpace: "nowrap" }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={8} style={{ textAlign: "center", padding: "3rem", color: "#9CA3AF" }}>No payments found.</td></tr>
+                  <tr><td colSpan={10} style={{ textAlign: "center", padding: "3rem", color: "#9CA3AF" }}>No payments found.</td></tr>
                 ) : (
                   filtered.map((p, i) => {
                     const candType = p.candidate_type || p.candidates?.candidate_type || "individual";
                     const isCouple = candType === "couple";
-                    const votePrice = p.vote_price ?? (isCouple ? 2 : 1);
+                    const votePriceCents =
+                      p.vote_price !== undefined && p.vote_price !== null
+                        ? p.vote_price >= 100
+                          ? p.vote_price
+                          : p.vote_price * 100
+                        : isCouple
+                          ? 200
+                          : 100;
+                    const subtotalCents = p.subtotal_amount ?? p.vote_quantity * votePriceCents;
+                    const serviceFeeCents =
+                      p.service_fee_amount ?? Math.max(0, p.amount - subtotalCents - (p.tax_amount ?? 0));
                     const candidateName = p.candidates?.display_name || p.candidates?.name || "—";
 
                     return (
@@ -148,7 +158,9 @@ export function AdminPaymentsPage() {
                           )}
                         </td>
                         <td style={{ padding: "0.875rem 1rem", fontWeight: 700, color: "#E51B3E" }}>{p.vote_quantity}</td>
-                        <td style={{ padding: "0.875rem 1rem", fontSize: "0.875rem", fontWeight: 600, color: "#24131A" }}>${votePrice}/vote</td>
+                        <td style={{ padding: "0.875rem 1rem", fontSize: "0.875rem", fontWeight: 600, color: "#24131A" }}>{formatCurrency(votePriceCents)}/vote</td>
+                        <td style={{ padding: "0.875rem 1rem", fontSize: "0.875rem", fontWeight: 600, color: "#24131A" }}>{formatCurrency(subtotalCents)}</td>
+                        <td style={{ padding: "0.875rem 1rem", fontSize: "0.875rem", color: "#6B6870" }}>{formatCurrency(serviceFeeCents)}</td>
                         <td style={{ padding: "0.875rem 1rem", fontWeight: 700, color: "#24131A" }}>{formatCurrency(p.amount)}</td>
                         <td style={{ padding: "0.875rem 1rem" }}><span className={`badge ${statusColors[p.status] ?? "badge-gray"}`} style={{ textTransform: "capitalize" }}>{p.status}</span></td>
                         <td style={{ padding: "0.875rem 1rem" }}>

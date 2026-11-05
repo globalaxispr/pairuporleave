@@ -1,7 +1,17 @@
 import { useState, useCallback, useEffect } from "react";
 import { X, Minus, Plus, Vote, Loader2, AlertCircle, Lock, Users, User } from "lucide-react";
-import { getVotePriceDollars, type PublicCandidate, getCandidateScore, supabaseUrl, supabaseAnonKey } from "@/lib/supabase";
-import { formatNumber } from "@/lib/utils";
+import {
+  getVotePriceDollars,
+  calculateVotePricingCents,
+  getSingleVoteAllInPriceFormatted,
+  IS_PLATFORM_SERVICE_FEE_ENABLED,
+  PRICING_VERSION,
+  type PublicCandidate,
+  getCandidateScore,
+  supabaseUrl,
+  supabaseAnonKey,
+} from "@/lib/supabase";
+import { formatNumber, formatCurrency } from "@/lib/utils";
 
 interface VoteModalProps {
   candidate: PublicCandidate;
@@ -17,7 +27,8 @@ export function VoteModal({ candidate, onClose }: VoteModalProps) {
 
   const isCouple = candidate.candidate_type === "couple";
   const unitPrice = getVotePriceDollars(candidate.candidate_type);
-  const totalPrice = quantity * unitPrice;
+  const pricing = calculateVotePricingCents(candidate.candidate_type, quantity);
+  const singleVoteAllIn = getSingleVoteAllInPriceFormatted(candidate.candidate_type);
 
   const candidateDisplayName = candidate.display_name || candidate.name;
 
@@ -52,6 +63,8 @@ export function VoteModal({ candidate, onClose }: VoteModalProps) {
           body: JSON.stringify({
             candidate_id: candidate.id,
             vote_quantity: quantity,
+            pricing_version: PRICING_VERSION,
+            client_total_cents: pricing.totalAmountCents,
           }),
         }
       );
@@ -68,7 +81,7 @@ export function VoteModal({ candidate, onClose }: VoteModalProps) {
       setError(msg);
       setLoading(false);
     }
-  }, [loading, quantity, candidate.id]);
+  }, [loading, quantity, candidate.id, pricing.totalAmountCents]);
 
   return (
     <div
@@ -138,7 +151,9 @@ export function VoteModal({ candidate, onClose }: VoteModalProps) {
                   color: "#7A0C2E",
                 }}
               >
-                ${unitPrice} per vote
+                {IS_PLATFORM_SERVICE_FEE_ENABLED
+                  ? `$${unitPrice}.00/vote base (${singleVoteAllIn} w/ fee for 1)`
+                  : `$${unitPrice} per vote`}
               </span>
             </div>
 
@@ -217,7 +232,7 @@ export function VoteModal({ candidate, onClose }: VoteModalProps) {
             How many votes?
           </label>
 
-          {/* Quick Amounts Pills */}
+          {/* Quick Amounts Pills with Upfront All-In Totals */}
           <div
             style={{
               display: "grid",
@@ -228,28 +243,34 @@ export function VoteModal({ candidate, onClose }: VoteModalProps) {
           >
             {QUICK_AMOUNTS.map((amt) => {
               const isSelected = quantity === amt;
+              const amtPricing = calculateVotePricingCents(candidate.candidate_type, amt);
               return (
                 <button
                   key={amt}
                   onClick={() => handleQuantityChange(amt)}
                   style={{
-                    padding: "0.5rem 0",
+                    padding: "0.375rem 0.125rem",
                     borderRadius: 10,
                     border: `1.5px solid ${isSelected ? "#E51B3E" : "#F0DCE2"}`,
                     background: isSelected ? "#FFE1E8" : "#FFF8FA",
                     color: isSelected ? "#7A0C2E" : "#24131A",
                     fontWeight: 800,
-                    fontSize: "0.875rem",
+                    fontSize: "0.8125rem",
                     cursor: "pointer",
-                    minHeight: 44,
+                    minHeight: 48,
                     display: "flex",
+                    flexDirection: "column",
                     alignItems: "center",
                     justifyContent: "center",
+                    lineHeight: 1.15,
                     transition: "all 0.15s ease",
                   }}
                   aria-pressed={isSelected}
                 >
-                  +{amt}
+                  <span>+{amt}</span>
+                  <span style={{ fontSize: "0.625rem", fontWeight: 700, color: "#6B6870", marginTop: "0.125rem" }}>
+                    {formatCurrency(amtPricing.totalAmountCents)}
+                  </span>
                 </button>
               );
             })}
@@ -329,52 +350,82 @@ export function VoteModal({ candidate, onClose }: VoteModalProps) {
           </div>
         </div>
 
-        {/* Total Price Summary Box */}
+        {/* Itemized All-In Price Summary Box */}
         <div
           style={{
             background: "linear-gradient(135deg, #FFF8FA 0%, #FFE1E8 100%)",
             border: "1.5px solid #F0DCE2",
             borderRadius: 16,
-            padding: "1.125rem 1.25rem",
+            padding: "1rem 1.25rem",
             marginBottom: "1.25rem",
           }}
         >
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem", marginBottom: "0.625rem" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ color: "#24131A", fontSize: "0.875rem", fontWeight: 700 }}>
+                Base Vote Subtotal ({formatNumber(quantity)} Vote{quantity !== 1 ? "s" : ""} × ${unitPrice}.00)
+              </span>
+              <span style={{ color: "#24131A", fontSize: "0.875rem", fontWeight: 800 }}>
+                {formatCurrency(pricing.subtotalCents)}
+              </span>
+            </div>
+
+            {pricing.serviceFeeCents > 0 && (
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ color: "#6B6870", fontSize: "0.8125rem", fontWeight: 600 }}>
+                  Platform Service Fee (mandatory · adds 0 votes)
+                </span>
+                <span style={{ color: "#24131A", fontSize: "0.8125rem", fontWeight: 700 }}>
+                  {formatCurrency(pricing.serviceFeeCents)}
+                </span>
+              </div>
+            )}
+
+            {pricing.taxCents > 0 && (
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ color: "#6B6870", fontSize: "0.8125rem", fontWeight: 600 }}>
+                  Applicable Tax
+                </span>
+                <span style={{ color: "#24131A", fontSize: "0.8125rem", fontWeight: 700 }}>
+                  {formatCurrency(pricing.taxCents)}
+                </span>
+              </div>
+            )}
+          </div>
+
           <div
             style={{
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
+              paddingTop: "0.5rem",
               marginBottom: "0.5rem",
+              borderTop: "1px solid rgba(240, 220, 226, 0.8)",
             }}
           >
             <div>
-              <span style={{ color: "#24131A", fontSize: "0.9375rem", fontWeight: 800, display: "block" }}>
-                {formatNumber(quantity)} Vote{quantity !== 1 ? "s" : ""} × ${unitPrice}
+              <span style={{ fontSize: "0.8125rem", color: "#24131A", display: "block", fontWeight: 800 }}>
+                TOTAL DUE
               </span>
-              <span style={{ fontSize: "0.8125rem", color: "#7A0C2E", fontWeight: 700, display: "block", marginTop: "0.125rem" }}>
-                The {isCouple ? "couple" : "candidate"} receives exactly {formatNumber(quantity)} vote{quantity !== 1 ? "s" : ""}.
-              </span>
-            </div>
-            <div style={{ textAlign: "right" }}>
-              <span style={{ fontSize: "0.75rem", color: "#6B6870", display: "block", fontWeight: 700 }}>
-                TOTAL
-              </span>
-              <span
-                style={{
-                  fontWeight: 900,
-                  fontSize: "1.625rem",
-                  color: "#7A0C2E",
-                  lineHeight: 1,
-                }}
-              >
-                ${formatNumber(totalPrice)}.00
+              <span style={{ fontSize: "0.75rem", color: "#7A0C2E", fontWeight: 700, display: "block", marginTop: "0.125rem" }}>
+                The {isCouple ? "couple" : "candidate"} receives {formatNumber(quantity)} vote{quantity !== 1 ? "s" : ""}.
               </span>
             </div>
+            <span
+              style={{
+                fontWeight: 900,
+                fontSize: "1.625rem",
+                color: "#7A0C2E",
+                lineHeight: 1,
+              }}
+            >
+              {formatCurrency(pricing.totalAmountCents)}
+            </span>
           </div>
 
           <div
             style={{
-              fontSize: "0.75rem",
+              fontSize: "0.71875rem",
               color: "#7A0C2E",
               display: "flex",
               alignItems: "center",
@@ -384,8 +435,12 @@ export function VoteModal({ candidate, onClose }: VoteModalProps) {
               borderTop: "1px solid rgba(240, 220, 226, 0.6)",
             }}
           >
-            <Lock size={12} color="#E51B3E" />
-            Stripe 256-bit encrypted · No account required
+            <Lock size={12} color="#E51B3E" style={{ flexShrink: 0 }} />
+            <span>
+              {IS_PLATFORM_SERVICE_FEE_ENABLED
+                ? "Stripe 256-bit encrypted · Service fee is not a government tax"
+                : "Stripe 256-bit encrypted · No account required"}
+            </span>
           </div>
         </div>
 
@@ -423,7 +478,7 @@ export function VoteModal({ candidate, onClose }: VoteModalProps) {
             letterSpacing: "0.02em",
             cursor: loading ? "not-allowed" : "pointer",
           }}
-          aria-label={`Continue to payment of $${totalPrice}`}
+          aria-label={`Continue to payment of ${formatCurrency(pricing.totalAmountCents)}`}
           id="checkout-btn"
         >
           {loading ? (
@@ -434,7 +489,7 @@ export function VoteModal({ candidate, onClose }: VoteModalProps) {
           ) : (
             <>
               <Vote size={18} />
-              CONTINUE TO PAYMENT · ${formatNumber(totalPrice)}.00
+              CONTINUE TO PAYMENT · {formatCurrency(pricing.totalAmountCents)}
             </>
           )}
         </button>

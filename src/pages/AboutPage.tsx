@@ -2,6 +2,7 @@ import { Helmet } from "react-helmet-async";
 import { Link } from "react-router-dom";
 import { Users, Heart, ShieldCheck, Trophy, ArrowRight, Vote } from "lucide-react";
 import { SITE_URL } from "@/lib/utils";
+import { IS_PLATFORM_SERVICE_FEE_ENABLED } from "@/lib/supabase";
 import { MembershipPlans } from "@/components/memberships/MembershipPlans";
 
 export function AboutPage() {
@@ -224,7 +225,9 @@ export function AboutPage() {
                 Every candidate brings a story. Every vote adds momentum. And every ranking update makes the experience more exciting.
               </p>
               <p style={{ margin: 0, color: "#6B6870" }}>
-                Whether you're supporting a dedicated individual candidate at $1 per vote or an inspiring couple team at $2 per vote, your participation is backed by transparent Stripe verification and instant leaderboard updates.
+                {IS_PLATFORM_SERVICE_FEE_ENABLED
+                  ? "Whether you're supporting a dedicated individual candidate at $1.00 base per vote ($1.34 total for 1 vote w/ platform service fee) or an inspiring couple team at $2.00 base per vote ($2.37 total for 1 vote w/ platform service fee), your participation is backed by transparent Stripe verification and instant leaderboard updates."
+                  : "Whether you're supporting a dedicated individual candidate at $1 per vote or an inspiring couple team at $2 per vote, your participation is backed by transparent Stripe verification and instant leaderboard updates."}
               </p>
             </div>
           </div>

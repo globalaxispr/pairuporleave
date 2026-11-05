@@ -22,6 +22,9 @@ const TYPE_COLORS = ["#7A0C2E", "#E51B3E"];
 interface PaymentRecord {
   created_at: string;
   amount: number;
+  subtotal_amount?: number | null;
+  service_fee_amount?: number | null;
+  tax_amount?: number | null;
   vote_quantity: number;
   candidate_id: string;
   candidate_type?: "individual" | "couple" | null;
@@ -45,7 +48,7 @@ export function AdminAnalyticsPage() {
       if (IS_SUPABASE_READY) {
         const results = await Promise.all([
           supabase.from("candidates").select("*").order("current_score", { ascending: false }),
-          supabase.from("payments").select("created_at, amount, vote_quantity, candidate_id, candidate_type").eq("status", "paid").order("created_at"),
+          supabase.from("payments").select("created_at, amount, subtotal_amount, service_fee_amount, tax_amount, vote_quantity, candidate_id, candidate_type").eq("status", "paid").order("created_at"),
         ]);
         c = results[0].data;
         p = results[1].data;
@@ -79,10 +82,16 @@ export function AdminAnalyticsPage() {
     .filter((c) => c.candidate_type === "couple")
     .reduce((sum, c) => sum + (c.paid_votes ?? c.total_votes ?? 0), 0);
 
-  // Revenue is strictly from PAID VOTES ($1 individual, $2 couple)
+  // Base Vote Revenue is strictly from PAID VOTES ($1 individual, $2 couple)
   const individualRevenueCents = individualPaidVotes * 100;
   const coupleRevenueCents = couplePaidVotes * 200;
   const totalRevenueCents = individualRevenueCents + coupleRevenueCents;
+  const totalServiceFeesCents = payments.reduce((sum, p) => {
+    const sub = p.subtotal_amount ?? p.vote_quantity * (p.candidate_type === "couple" ? 200 : 100);
+    const fee = p.service_fee_amount ?? Math.max(0, p.amount - sub - (p.tax_amount ?? 0));
+    return sum + fee;
+  }, 0);
+  const totalGrossCollectedCents = totalRevenueCents + totalServiceFeesCents;
 
   // Score & Revenue by candidate (bar chart data)
   const votesByCandidate = candidates.slice(0, 10).map((c) => {
@@ -183,6 +192,14 @@ export function AdminAnalyticsPage() {
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
                   <span>Couple ($2/vote):</span>
                   <span style={{ fontWeight: 700, color: "#E51B3E" }}>{formatCurrency(coupleRevenueCents)}</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span>Service Fees Collected:</span>
+                  <span style={{ fontWeight: 700, color: "#6B6870" }}>{formatCurrency(totalServiceFeesCents)}</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span>Gross Total Collected:</span>
+                  <span style={{ fontWeight: 700, color: "#059669" }}>{formatCurrency(totalGrossCollectedCents)}</span>
                 </div>
               </div>
             </div>
