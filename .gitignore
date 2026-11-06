@@ -6,8 +6,8 @@ dist/
 
 # Environment variables — NEVER commit these
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 
 # Local development test seeds containing test credentials
 supabase/migrations/*_dev_only.sql
