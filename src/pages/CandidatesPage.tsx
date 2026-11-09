@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { Helmet } from "react-helmet-async";
-import { supabase, type PublicCandidate, fetchCandidatesSafe, getCandidateScore, pickPublicFields, IS_PLATFORM_SERVICE_FEE_ENABLED } from "@/lib/supabase";
+import { supabase, type PublicCandidate, fetchCandidatesSafe, getCandidateScore, applyRealtimeCandidateToCache, IS_PLATFORM_SERVICE_FEE_ENABLED } from "@/lib/supabase";
 import { CandidateGrid } from "@/components/candidates/CandidateGrid";
 import { CandidateFilter } from "@/components/candidates/CandidateFilter";
 import { LoadingState } from "@/components/ui/LoadingState";
@@ -48,9 +48,15 @@ export function CandidatesPage() {
     const channel = supabase
       .channel("candidates-page")
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "candidates" }, (payload) => {
-        const updated = pickPublicFields(payload.new as Record<string, unknown>);
+        const updated = applyRealtimeCandidateToCache(
+          payload.new as Record<string, unknown>,
+          payload.eventType
+        );
+        if (!updated) return;
         setCandidates((prev) =>
-          prev.map((c) => c.id === updated.id ? { ...c, ...updated } : c)
+          updated.status !== "active"
+            ? prev.filter((c) => c.id !== updated.id)
+            : prev.map((c) => (c.id === updated.id ? { ...c, ...updated } : c))
         );
       })
       .subscribe();
@@ -86,11 +92,16 @@ export function CandidatesPage() {
   return (
     <>
       <Helmet>
-        <title>Candidates — Pair Up or Leave</title>
+        <title>Meet the Candidates & Cast Your Vote — Pair Up or Leave</title>
         <meta name="description" content={IS_PLATFORM_SERVICE_FEE_ENABLED ? "Browse all candidates and couples on Pair Up or Leave and cast your votes. $1/vote base ($1.34 w/ service fee for 1 vote) for individuals, $2/vote base ($2.37 w/ service fee for 1 vote) for couples. No account required." : "Browse all candidates and couples on Pair Up or Leave and cast your votes. $1/vote for individuals, $2/vote for couples. No account required."} />
-        <meta property="og:title" content="Candidates — Pair Up or Leave" />
+        <meta property="og:title" content="Meet the Candidates & Cast Your Vote — Pair Up or Leave" />
         <meta property="og:description" content={IS_PLATFORM_SERVICE_FEE_ENABLED ? "Browse all candidates and couples on Pair Up or Leave and cast your votes. $1/vote base ($1.34 w/ fee) for individuals, $2/vote base ($2.37 w/ fee) for couples." : "Browse all candidates and couples on Pair Up or Leave and cast your votes. $1/vote for individuals, $2/vote for couples."} />
         <meta property="og:url" content={`${SITE_URL}/candidates`} />
+        <meta property="og:image" content={`${SITE_URL}/og-image.jpg`} />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Meet the Candidates & Cast Your Vote — Pair Up or Leave" />
+        <meta name="twitter:description" content="Browse all active candidates and couples on Pair Up or Leave and cast your verified votes." />
+        <meta name="twitter:image" content={`${SITE_URL}/og-image.jpg`} />
         <link rel="canonical" href={`${SITE_URL}/candidates`} />
       </Helmet>
 
@@ -188,9 +199,9 @@ export function CandidatesPage() {
           ) : (
             <>
               <div style={{ marginBottom: "1rem", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <span style={{ fontSize: "0.875rem", color: "#6B7280", fontWeight: 600 }}>
+                <h2 style={{ fontSize: "0.875rem", color: "#6B7280", fontWeight: 600, margin: 0 }}>
                   Showing {filtered.length} candidate{filtered.length !== 1 ? "s" : ""}
-                </span>
+                </h2>
               </div>
               <CandidateGrid
                 candidates={filtered}

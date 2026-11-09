@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Trophy, TrendingUp, Vote, ArrowRight } from "lucide-react";
-import { supabase, fetchCandidatesSafe, getCandidateScore, pickPublicFields, type PublicCandidate } from "@/lib/supabase";
+import { supabase, fetchCandidatesSafe, getCandidateScore, applyRealtimeCandidateToCache, type PublicCandidate } from "@/lib/supabase";
 import { formatNumber } from "@/lib/utils";
 import { VoteModal } from "@/components/voting/VoteModal";
 
@@ -30,8 +30,15 @@ export function LiveRankingSection() {
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "candidates" },
         (payload) => {
-          const updated = pickPublicFields(payload.new as Record<string, unknown>);
+          const updated = applyRealtimeCandidateToCache(
+            payload.new as Record<string, unknown>,
+            payload.eventType
+          );
+          if (!updated) return;
           setCandidates((prev) => {
+            if (updated.status !== "active") {
+              return prev.filter((c) => c.id !== updated.id);
+            }
             const mapped = prev.map((c) =>
               c.id === updated.id ? { ...c, ...updated } : c
             );
@@ -239,7 +246,7 @@ export function LiveRankingSection() {
                         )}
                       </div>
                       <div style={{ fontSize: "0.8125rem", color: "#6B6870", marginBottom: "0.875rem" }}>
-                        {top1.position} Â· <span style={{ color: "#7A0C2E", fontWeight: 600 }}>{top1.category}</span>
+                        {top1.position} · <span style={{ color: "#7A0C2E", fontWeight: 600 }}>{top1.category}</span>
                       </div>
 
                       {/* Vote pill */}
@@ -617,7 +624,7 @@ export function LiveRankingSection() {
                         </span>
                       )}
                     </div>
-                    <div style={{ fontSize: "0.8125rem", color: "#6B6870", marginBottom: "1rem" }}>{top1.position} Â· {top1.category}</div>
+                    <div style={{ fontSize: "0.8125rem", color: "#6B6870", marginBottom: "1rem" }}>{top1.position} · {top1.category}</div>
                     <div
                       style={{
                         background: "#FFF8FA",
@@ -716,20 +723,20 @@ export function LiveRankingSection() {
 
               {/* View Full Ranking Button */}
               <div style={{ textAlign: "center", marginTop: "1.5rem" }}>
-                <Link to="/ranking" style={{ textDecoration: "none" }}>
-                  <button
-                    className="btn-outline"
-                    style={{
-                      minHeight: 46,
-                      padding: "0.625rem 1.5rem",
-                      fontSize: "0.9375rem",
-                      fontWeight: 700,
-                    }}
-                    aria-label="View full ranking leaderboard"
-                  >
-                    <span>View Full Ranking</span>
-                    <ArrowRight size={16} />
-                  </button>
+                <Link
+                  to="/ranking"
+                  className="btn-outline"
+                  style={{
+                    textDecoration: "none",
+                    minHeight: 46,
+                    padding: "0.625rem 1.5rem",
+                    fontSize: "0.9375rem",
+                    fontWeight: 700,
+                  }}
+                  aria-label="View full ranking leaderboard"
+                >
+                  <span>View Full Ranking</span>
+                  <ArrowRight size={16} />
                 </Link>
               </div>
             </div>

@@ -15,7 +15,10 @@ export function Footer() {
       role="contentinfo"
       className="reveal-fade-up"
     >
-      <div className="container-max" style={{ padding: "4rem 1.25rem 2.5rem" }}>
+      <div
+        className="container-max pb-24 md:pb-10"
+        style={{ paddingTop: "4rem", paddingLeft: "1.25rem", paddingRight: "1.25rem" }}
+      >
         {/* Main 4-Column Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10 lg:gap-8 mb-12">
           {/* Column 1: Brand & Description */}
@@ -79,7 +82,7 @@ export function Footer() {
 
           {/* Column 2: Explore */}
           <div>
-            <h4
+            <h2
               style={{
                 fontSize: "0.8125rem",
                 fontWeight: 800,
@@ -90,7 +93,7 @@ export function Footer() {
               }}
             >
               Explore
-            </h4>
+            </h2>
             <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
               {[
                 { label: "Candidates", to: "/candidates" },
@@ -125,7 +128,7 @@ export function Footer() {
 
           {/* Column 3: How It Works */}
           <div>
-            <h4
+            <h2
               style={{
                 fontSize: "0.8125rem",
                 fontWeight: 800,
@@ -136,7 +139,7 @@ export function Footer() {
               }}
             >
               How It Works
-            </h4>
+            </h2>
             <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
               {[
                 { label: "How Voting Works", to: "/how-it-works" },
@@ -171,7 +174,7 @@ export function Footer() {
 
           {/* Column 4: Connect & Inquiries */}
           <div>
-            <h4
+            <h2
               style={{
                 fontSize: "0.8125rem",
                 fontWeight: 800,
@@ -182,7 +185,7 @@ export function Footer() {
               }}
             >
               Support & Connect
-            </h4>
+            </h2>
             <p
               style={{
                 color: "rgba(255, 243, 245, 0.8)",

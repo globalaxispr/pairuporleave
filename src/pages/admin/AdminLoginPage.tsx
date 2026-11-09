@@ -34,6 +34,7 @@ export function AdminLoginPage() {
     <>
       <Helmet>
         <title>Admin Login — Pair Up or Leave</title>
+        <meta name="robots" content="noindex, nofollow" />
       </Helmet>
 
       <main

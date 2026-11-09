@@ -74,12 +74,14 @@ export function CandidateFilter({
             onClick={() => onSearchChange("")}
             style={{
               position: "absolute",
-              right: "0.875rem",
+              right: "0.5rem",
               top: "50%",
               transform: "translateY(-50%)",
               background: "none",
               border: "none",
-              padding: "0.25rem",
+              padding: "0.375rem",
+              minWidth: 40,
+              minHeight: 40,
               cursor: "pointer",
               color: "#6B6870",
               display: "flex",
@@ -118,7 +120,7 @@ export function CandidateFilter({
               background: category === "" ? "#7A0C2E" : "#FFFFFF",
               color: category === "" ? "#FFFFFF" : "#24131A",
               whiteSpace: "nowrap",
-              minHeight: 40,
+              minHeight: 42,
               transition: "all 0.15s ease",
             }}
           >
@@ -142,7 +144,7 @@ export function CandidateFilter({
                   background: isActive ? "#7A0C2E" : "#FFFFFF",
                   color: isActive ? "#FFFFFF" : "#24131A",
                   whiteSpace: "nowrap",
-                  minHeight: 40,
+                  minHeight: 42,
                   transition: "all 0.15s ease",
                 }}
               >
@@ -171,7 +173,7 @@ export function CandidateFilter({
               key={opt.value}
               onClick={() => onSortChange(opt.value)}
               style={{
-                padding: "0.375rem 0.875rem",
+                padding: "0.45rem 0.95rem",
                 borderRadius: 8,
                 fontSize: "0.8125rem",
                 fontWeight: isSelected ? 700 : 500,
@@ -180,7 +182,7 @@ export function CandidateFilter({
                 background: isSelected ? "#FFE1E8" : "#FFF8FA",
                 color: isSelected ? "#7A0C2E" : "#6B6870",
                 whiteSpace: "nowrap",
-                minHeight: 36,
+                minHeight: 42,
                 transition: "all 0.15s ease",
               }}
             >

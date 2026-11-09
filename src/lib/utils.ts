@@ -7,12 +7,12 @@ export function cn(...inputs: ClassValue[]) {
 
 /**
  * Base site URL for canonical metadata, Open Graph tags, and sharing URLs.
- * Configurable via VITE_SITE_URL env variable with default to https://pairuporleave.com.
+ * Configurable via VITE_SITE_URL env variable with default to https://www.pairuporleave.com.
  */
 export const SITE_URL: string =
   (typeof import.meta !== "undefined" && import.meta.env?.VITE_SITE_URL
     ? (import.meta.env.VITE_SITE_URL as string)
-    : "https://pairuporleave.com"
+    : "https://www.pairuporleave.com"
   ).replace(/\/$/, "");
 
 export function formatNumber(num: number): string {

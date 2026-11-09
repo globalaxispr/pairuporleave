@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Vote, TrendingUp, User, Eye } from "lucide-react";
 import { getVotePriceDollars, getSingleVoteAllInPriceFormatted, IS_PLATFORM_SERVICE_FEE_ENABLED, type PublicCandidate, getCandidateScore } from "@/lib/supabase";
 import { formatNumber } from "@/lib/utils";
@@ -413,11 +413,17 @@ export function CandidateCard({ candidate, rank }: CandidateCardProps) {
                 color: "#24131A",
                 margin: 0,
                 lineHeight: 1.3,
-                cursor: "pointer",
               }}
-              onClick={() => navigate(`/candidate/${candidate.id}`)}
             >
-              {candidate.name}
+              <Link
+                to={`/candidate/${candidate.id}`}
+                style={{
+                  color: "inherit",
+                  textDecoration: "none",
+                }}
+              >
+                {candidate.name}
+              </Link>
             </h3>
             <div
               style={{
@@ -498,8 +504,8 @@ export function CandidateCard({ candidate, rank }: CandidateCardProps) {
               VOTE NOW
             </button>
 
-            <button
-              onClick={() => navigate(`/candidate/${candidate.id}`)}
+            <Link
+              to={`/candidate/${candidate.id}`}
               style={{
                 width: 48,
                 minHeight: 48,
@@ -513,12 +519,13 @@ export function CandidateCard({ candidate, rank }: CandidateCardProps) {
                 cursor: "pointer",
                 flexShrink: 0,
                 transition: "all 0.15s ease",
+                textDecoration: "none",
               }}
               aria-label={`View details of ${candidate.name}`}
               title="View Profile"
             >
               <Eye size={18} />
-            </button>
+            </Link>
           </div>
         </div>
       </article>

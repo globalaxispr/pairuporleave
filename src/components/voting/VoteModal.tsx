@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { X, Minus, Plus, Vote, Loader2, AlertCircle, Lock, Users, User } from "lucide-react";
 import {
   getVotePriceDollars,
@@ -31,14 +31,52 @@ export function VoteModal({ candidate, onClose }: VoteModalProps) {
   const singleVoteAllIn = getSingleVoteAllInPriceFormatted(candidate.candidate_type);
 
   const candidateDisplayName = candidate.display_name || candidate.name;
+  const modalRef = useRef<HTMLDivElement | null>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
 
   useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  useEffect(() => {
+    if (document.activeElement instanceof HTMLElement) {
+      previousFocusRef.current = document.activeElement;
+    }
+
+    const firstBtn = modalRef.current?.querySelector<HTMLElement>(
+      'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    );
+    firstBtn?.focus();
+
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onCloseRef.current();
+        return;
+      }
+      if (e.key === "Tab" && modalRef.current) {
+        const focusable = modalRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), input:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
     };
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      previousFocusRef.current?.focus();
+    };
+  }, []);
 
   const handleQuantityChange = useCallback((val: number) => {
     const clamped = Math.max(1, Math.min(1000, Math.floor(val)));
@@ -96,6 +134,7 @@ export function VoteModal({ candidate, onClose }: VoteModalProps) {
       }}
     >
       <div
+        ref={modalRef}
         className="modal-content"
         style={{
           borderRadius: "24px 24px 20px 20px",
@@ -187,8 +226,8 @@ export function VoteModal({ candidate, onClose }: VoteModalProps) {
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              minWidth: 40,
-              minHeight: 40,
+              minWidth: 44,
+              minHeight: 44,
               flexShrink: 0,
             }}
           >
@@ -232,15 +271,8 @@ export function VoteModal({ candidate, onClose }: VoteModalProps) {
             How many votes?
           </label>
 
-          {/* Quick Amounts Pills with Upfront All-In Totals */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(6, 1fr)",
-              gap: "0.375rem",
-              marginBottom: "1rem",
-            }}
-          >
+          {/* Quick Amounts Pills with Upfront All-In Totals (3x2 on narrow mobile, 6-col on sm+) */}
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 mb-4">
             {QUICK_AMOUNTS.map((amt) => {
               const isSelected = quantity === amt;
               const amtPricing = calculateVotePricingCents(candidate.candidate_type, amt);

@@ -6,10 +6,29 @@ const supabaseAdmin = createClient(
 );
 
 // Restrict CORS to production domain — admin functions must not accept cross-origin from arbitrary origins
-const ALLOWED_ORIGIN = Deno.env.get("SITE_URL") ?? "";
+const ALLOWED_ORIGIN = Deno.env.get("SITE_URL") ?? "https://pairuporleave.com";
 
 function getCorsHeaders(requestOrigin: string | null): HeadersInit {
-  const allowedOrigin = ALLOWED_ORIGIN || requestOrigin || "";
+  const defaultOrigin = (ALLOWED_ORIGIN || "https://pairuporleave.com").replace(/\/+$/, "");
+  let allowedOrigin = defaultOrigin;
+
+  if (requestOrigin) {
+    try {
+      const reqUrl = new URL(requestOrigin);
+      const trustedUrl = new URL(defaultOrigin);
+      const reqHost = reqUrl.hostname.replace(/^www\./, "").toLowerCase();
+      const trustedHost = trustedUrl.hostname.replace(/^www\./, "").toLowerCase();
+
+      if (reqHost === trustedHost && reqUrl.protocol === "https:") {
+        allowedOrigin = `https://${reqUrl.host}`;
+      } else if ((reqHost === "localhost" || reqHost === "127.0.0.1") && Deno.env.get("ENVIRONMENT") !== "production") {
+        allowedOrigin = `${reqUrl.protocol}//${reqUrl.host}`;
+      }
+    } catch {
+      // Keep defaultOrigin
+    }
+  }
+
   return {
     "Access-Control-Allow-Origin": allowedOrigin,
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",

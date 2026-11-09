@@ -11,21 +11,29 @@ const supabaseAdmin = (supabaseUrl && supabaseAdminKey)
   ? createClient(supabaseUrl, supabaseAdminKey)
   : null;
 
-const ALLOWED_ORIGIN = Deno.env.get("SITE_URL") ?? "";
+const ALLOWED_ORIGIN = Deno.env.get("SITE_URL") ?? "https://pairuporleave.com";
 
 function getCorsHeaders(requestOrigin: string | null): HeadersInit {
-  let allowedOrigin = ALLOWED_ORIGIN || requestOrigin || "";
-  if (requestOrigin && ALLOWED_ORIGIN) {
+  const defaultOrigin = (ALLOWED_ORIGIN || "https://pairuporleave.com").replace(/\/+$/, "");
+  let allowedOrigin = defaultOrigin;
+
+  if (requestOrigin) {
     try {
-      const originHost = new URL(requestOrigin).hostname.replace(/^www\./, "");
-      const allowedHost = new URL(ALLOWED_ORIGIN).hostname.replace(/^www\./, "");
-      if (originHost === allowedHost) {
-        allowedOrigin = requestOrigin;
+      const reqUrl = new URL(requestOrigin);
+      const trustedUrl = new URL(defaultOrigin);
+      const reqHost = reqUrl.hostname.replace(/^www\./, "").toLowerCase();
+      const trustedHost = trustedUrl.hostname.replace(/^www\./, "").toLowerCase();
+
+      if (reqHost === trustedHost && reqUrl.protocol === "https:") {
+        allowedOrigin = `https://${reqUrl.host}`;
+      } else if ((reqHost === "localhost" || reqHost === "127.0.0.1") && Deno.env.get("ENVIRONMENT") !== "production") {
+        allowedOrigin = `${reqUrl.protocol}//${reqUrl.host}`;
       }
     } catch {
-      // Fall back to configured ALLOWED_ORIGIN
+      // Keep defaultOrigin
     }
   }
+
   return {
     "Access-Control-Allow-Origin": allowedOrigin,
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",

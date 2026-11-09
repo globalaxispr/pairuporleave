@@ -12,6 +12,8 @@ export function MobileStickyVote() {
   const isHidden =
     dismissed ||
     location.pathname.startsWith("/admin") ||
+    location.pathname === "/vote/success" ||
+    location.pathname === "/vote/cancel" ||
     location.pathname === "/vote-success" ||
     location.pathname === "/vote-cancel";
 
@@ -62,17 +64,20 @@ export function MobileStickyVote() {
             style={{
               background: "#FFF3F5",
               border: "1px solid #F0DCE2",
-              borderRadius: 6,
-              padding: "0.25rem",
+              borderRadius: 8,
+              padding: "0.375rem",
+              minWidth: 36,
+              minHeight: 36,
               cursor: "pointer",
               color: "#7A0C2E",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
+              flexShrink: 0,
             }}
             aria-label="Dismiss sticky vote prompt"
           >
-            <X size={14} />
+            <X size={16} />
           </button>
           <div style={{ display: "flex", flexDirection: "column" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
@@ -93,10 +98,10 @@ export function MobileStickyVote() {
           className="btn-vote"
           onClick={handleClick}
           style={{
-            padding: "0.4rem 1.125rem",
+            padding: "0.5rem 1.125rem",
             fontSize: "0.875rem",
             fontWeight: 800,
-            minHeight: 40,
+            minHeight: 44,
           }}
           aria-label="Vote now"
         >

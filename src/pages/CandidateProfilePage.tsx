@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { Vote, ArrowLeft, TrendingUp, User, MessageSquare, Eye } from "lucide-react";
-import { supabase, type PublicCandidate, fetchCandidateByIdSafe, getCandidateScore, pickPublicFields, getSingleVoteAllInPriceFormatted, IS_PLATFORM_SERVICE_FEE_ENABLED } from "@/lib/supabase";
+import { supabase, type PublicCandidate, fetchCandidateByIdSafe, getCandidateScore, applyRealtimeCandidateToCache, getSingleVoteAllInPriceFormatted, IS_PLATFORM_SERVICE_FEE_ENABLED } from "@/lib/supabase";
 import { formatNumber, SITE_URL } from "@/lib/utils";
 import { VoteModal } from "@/components/voting/VoteModal";
 import { LoadingState } from "@/components/ui/LoadingState";
@@ -42,7 +42,11 @@ export function CandidateProfilePage() {
         event: "UPDATE", schema: "public", table: "candidates",
         filter: `id=eq.${id}`,
       }, (payload) => {
-        const updated = pickPublicFields(payload.new as Record<string, unknown>);
+        const updated = applyRealtimeCandidateToCache(
+          payload.new as Record<string, unknown>,
+          payload.eventType
+        );
+        if (!updated) return;
         setCandidate((prev) => prev ? { ...prev, ...updated } : prev);
       })
       .subscribe();
@@ -51,28 +55,61 @@ export function CandidateProfilePage() {
 
   if (loading) return <LoadingState size="lg" message="Loading candidate..." />;
   if (error || !candidate) return (
-    <ErrorState
-      title="Candidate not found"
-      message="This candidate does not exist or has been removed."
-      onRetry={() => navigate("/candidates")}
-    />
+    <>
+      <Helmet>
+        <title>Candidate Not Found — Pair Up or Leave</title>
+        <meta name="robots" content="noindex, nofollow" />
+      </Helmet>
+      <ErrorState
+        title="Candidate not found"
+        message="This candidate does not exist or has been removed."
+        onRetry={() => navigate("/candidates")}
+      />
+    </>
   );
 
   const isPaused = candidate.status === "paused";
   const isCouple = candidate.candidate_type === "couple";
   const candidateDisplayName = candidate.display_name || candidate.name;
   const initials = candidate.name.split(" ").slice(0, 2).map((n) => n[0]).join("").toUpperCase();
+  const profileImage = candidate.photo_url || candidate.person_one_photo_url || `${SITE_URL}/og-image.jpg`;
+  const profileSchema = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "BreadcrumbList",
+        itemListElement: [
+          { "@type": "ListItem", position: 1, name: "Home", item: `${SITE_URL}/` },
+          { "@type": "ListItem", position: 2, name: "Candidates", item: `${SITE_URL}/candidates` },
+          { "@type": "ListItem", position: 3, name: candidateDisplayName, item: `${SITE_URL}/candidate/${candidate.id}` },
+        ],
+      },
+      {
+        "@type": "Person",
+        name: candidateDisplayName,
+        jobTitle: candidate.position,
+        description: candidate.description ?? `Contestant in ${candidate.category} on Pair Up or Leave.`,
+        image: profileImage,
+        url: `${SITE_URL}/candidate/${candidate.id}`,
+      },
+    ],
+  };
 
   return (
     <>
       <Helmet>
-        <title>{candidate.name} — Pair Up or Leave</title>
-        <meta name="description" content={`Support ${candidate.name} — ${candidate.position}. ${candidate.description ?? ""} Vote now on Pair Up or Leave.`} />
-        <meta property="og:title" content={`${candidate.name} — Pair Up or Leave`} />
-        <meta property="og:description" content={`Support ${candidate.name} — ${candidate.position}. Cast your votes now on Pair Up or Leave. ${IS_PLATFORM_SERVICE_FEE_ENABLED ? (isCouple ? "$2/vote base ($2.37 total for 1 vote w/ service fee)" : "$1/vote base ($1.34 total for 1 vote w/ service fee)") : (isCouple ? "$2/vote" : "$1/vote")}.`} />
+        <title>{`Vote for ${candidateDisplayName} (${candidate.category}) — Pair Up or Leave`}</title>
+        <meta name="description" content={`Support ${candidateDisplayName} (${candidate.position}) on Pair Up or Leave. ${candidate.description ?? ""} Cast your verified vote in real time!`} />
+        <meta property="og:title" content={`Vote for ${candidateDisplayName} — Pair Up or Leave`} />
+        <meta property="og:description" content={`Support ${candidateDisplayName} — ${candidate.position}. Cast your votes now on Pair Up or Leave. ${IS_PLATFORM_SERVICE_FEE_ENABLED ? (isCouple ? "$2/vote base ($2.37 total for 1 vote w/ service fee)" : "$1/vote base ($1.34 total for 1 vote w/ service fee)") : (isCouple ? "$2/vote" : "$1/vote")}.`} />
         <meta property="og:url" content={`${SITE_URL}/candidate/${candidate.id}`} />
+        <meta property="og:image" content={profileImage} />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={`Vote for ${candidateDisplayName} — Pair Up or Leave`} />
+        <meta name="twitter:description" content={`Support ${candidateDisplayName} (${candidate.position}) on Pair Up or Leave.`} />
+        <meta name="twitter:image" content={profileImage} />
         <link rel="canonical" href={`${SITE_URL}/candidate/${candidate.id}`} />
-        {candidate.photo_url && <meta property="og:image" content={candidate.photo_url} />}
+        <script type="application/ld+json">{JSON.stringify(profileSchema)}</script>
       </Helmet>
 
       <main id="main-content" style={{ minHeight: "80vh", background: "#ffffff" }}>

@@ -43,3 +43,8 @@ npm-debug.log*
 # Supabase CLI temporary files
 .temp/
 supabase/.temp/
+
+# Local Deno & test artifacts
+deno_dir/
+deno.lock
+backup_*

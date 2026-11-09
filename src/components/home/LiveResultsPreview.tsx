@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { TrendingUp, ArrowRight } from "lucide-react";
-import { supabase, fetchCandidatesSafe, getCandidateScore, pickPublicFields, type PublicCandidate } from "@/lib/supabase";
+import { fetchCandidatesSafe, getCandidateScore, type PublicCandidate } from "@/lib/supabase";
 import { formatNumber } from "@/lib/utils";
 
 export function LiveResultsPreview() {
@@ -73,12 +73,15 @@ export function LiveResultsPreview() {
             <p style={{ fontSize: "1.0625rem", color: "#6B6870", lineHeight: 1.65, marginBottom: "1.75rem" }}>
               Scores update as votes come in. Follow the latest standings and see how the competition is unfolding in real time.
             </p>
-            <Link to="/results">
-              <button className="btn-primary" aria-label="View complete competition results">
-                <TrendingUp size={16} />
-                Full Results
-                <ArrowRight size={16} />
-              </button>
+            <Link
+              to="/results"
+              className="btn-primary"
+              style={{ textDecoration: "none" }}
+              aria-label="View complete competition results"
+            >
+              <TrendingUp size={16} />
+              Full Results
+              <ArrowRight size={16} />
             </Link>
           </div>
 

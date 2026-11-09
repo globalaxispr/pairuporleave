@@ -31,15 +31,34 @@ const faqs = [
 ];
 
 export function HowItWorksPage() {
+  const faqSchema = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: faqs.map((faq) => ({
+      "@type": "Question",
+      name: faq.q,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: faq.a,
+      },
+    })),
+  };
+
   return (
     <>
       <Helmet>
-        <title>How It Works — Pair Up or Leave</title>
-        <meta name="description" content={IS_PLATFORM_SERVICE_FEE_ENABLED ? "Learn how voting works on Pair Up or Leave. $1/vote base ($1.34 total for 1 vote w/ service fee) for individuals, $2/vote base ($2.37 total for 1 vote w/ service fee) for couples. Secure payments via Stripe." : "Learn how voting works on Pair Up or Leave. $1/vote for individuals, $2/vote for couples. Secure payments via Stripe."} />
-        <meta property="og:title" content="How It Works — Pair Up or Leave" />
+        <title>How Voting Works, Pricing & FAQ — Pair Up or Leave</title>
+        <meta name="description" content={IS_PLATFORM_SERVICE_FEE_ENABLED ? "Learn how voting works on Pair Up or Leave. $1/vote base ($1.34 total for 1 vote w/ service fee) for individuals, $2/vote base ($2.37 total for 1 vote w/ service fee) for couples. Secure payments via Stripe." : "Learn how voting works on Pair Up or Leave: choose your candidate, select votes ($1 individual / $2 couple), and pay securely via Stripe."} />
+        <meta property="og:title" content="How Voting Works, Pricing & FAQ — Pair Up or Leave" />
         <meta property="og:description" content={IS_PLATFORM_SERVICE_FEE_ENABLED ? "Everything you need to know about voting on Pair Up or Leave. $1/vote base ($1.34 total for 1 vote w/ fee) for individuals, $2/vote base ($2.37 total for 1 vote w/ fee) for couples." : "Everything you need to know about voting on Pair Up or Leave. $1/vote for individuals, $2/vote for couples."} />
         <meta property="og:url" content={`${SITE_URL}/how-it-works`} />
+        <meta property="og:image" content={`${SITE_URL}/og-image.jpg`} />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="How Voting Works, Pricing & FAQ — Pair Up or Leave" />
+        <meta name="twitter:description" content="Simple 3-step voting on Pair Up or Leave: $1/vote for individuals, $2/vote for couples via Stripe." />
+        <meta name="twitter:image" content={`${SITE_URL}/og-image.jpg`} />
         <link rel="canonical" href={`${SITE_URL}/how-it-works`} />
+        <script type="application/ld+json">{JSON.stringify(faqSchema)}</script>
       </Helmet>
 
       <main id="main-content" style={{ background: "#ffffff" }}>
@@ -132,7 +151,7 @@ export function HowItWorksPage() {
         </section>
 
         {/* FAQ */}
-        <section className="section" style={{ background: "#ffffff" }}>
+        <section id="faq" className="section" style={{ background: "#ffffff" }}>
           <div className="container-max" style={{ maxWidth: 720 }}>
             <h2 style={{ textAlign: "center", fontSize: "2rem", fontWeight: 800, color: "#24131A", marginBottom: "2.5rem", letterSpacing: "-0.02em" }}>
               Frequently Asked Questions

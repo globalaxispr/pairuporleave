@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { Helmet } from "react-helmet-async";
 import { Plus, Edit, Trash2, Pause, Play, Loader2, X, Upload, AlertCircle, Users, User, Gift, ShieldAlert, History } from "lucide-react";
-import { supabase, type Candidate, type CandidateType, fetchAdminCandidates, getCandidateScore, IS_SUPABASE_READY } from "@/lib/supabase";
+import { supabase, type Candidate, type CandidateType, fetchAdminCandidates, getCandidateScore, invalidateCandidatesCache, IS_SUPABASE_READY } from "@/lib/supabase";
 import { formatNumber, slugify } from "@/lib/utils";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { ScoreAdjustmentModal } from "@/components/admin/ScoreAdjustmentModal";
@@ -501,6 +501,7 @@ export function AdminCandidatesPage() {
         if (error) throw error;
       }
 
+      invalidateCandidatesCache();
       setFormOpen(false);
       setEditTarget(null);
       await load();
@@ -514,12 +515,14 @@ export function AdminCandidatesPage() {
   async function toggleStatus(c: Candidate) {
     const newStatus = c.status === "active" ? "paused" : "active";
     await supabase.from("candidates").update({ status: newStatus }).eq("id", c.id);
+    invalidateCandidatesCache();
     await load();
   }
 
   async function deleteCandidate(id: string) {
     if (!confirm("Are you sure you want to delete this candidate? This cannot be undone.")) return;
     await supabase.from("candidates").delete().eq("id", id);
+    invalidateCandidatesCache();
     await load();
   }
 
