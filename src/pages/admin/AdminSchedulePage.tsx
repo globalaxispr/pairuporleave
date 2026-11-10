@@ -18,6 +18,11 @@ import {
   type CompetitionStatus,
   DEFAULT_COMPETITION_SCHEDULE,
 } from "@/lib/supabase";
+import {
+  utcIsoToZonedLocal,
+  zonedLocalToUtcIso,
+  formatZonedDate,
+} from "@/lib/utils";
 
 const TIMEZONE_OPTIONS = [
   { label: "Eastern Time — US (New York, EDT/EST)", value: "America/New_York" },
@@ -45,28 +50,40 @@ export function AdminSchedulePage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const data = await fetchCompetitionSchedule();
-        setSchedule(data);
-        setName(data.name);
-        setIsEnabled(data.is_enabled);
-        setStartTime(
-          data.start_time ? new Date(data.start_time).toISOString().slice(0, 16) : ""
-        );
-        setEndTime(
-          data.end_time ? new Date(data.end_time).toISOString().slice(0, 16) : ""
-        );
-        setTimezone(data.timezone || "America/New_York");
-        setTitle(data.title);
-        setDescription(data.description || "");
-      } finally {
-        setLoading(false);
-      }
+  const loadSchedule = async () => {
+    try {
+      setLoading(true);
+      const data = await fetchCompetitionSchedule();
+      setSchedule(data);
+      setName(data.name);
+      setIsEnabled(data.is_enabled);
+      const tz = data.timezone || "America/New_York";
+      setTimezone(tz);
+      setStartTime(utcIsoToZonedLocal(data.start_time, tz));
+      setEndTime(utcIsoToZonedLocal(data.end_time, tz));
+      setTitle(data.title);
+      setDescription(data.description || "");
+    } finally {
+      setLoading(false);
     }
-    void load();
+  };
+
+  useEffect(() => {
+    void loadSchedule();
   }, []);
+
+  const handleTimezoneChange = (newTz: string) => {
+    // Preserve nominal absolute UTC moment when switching timezone view
+    if (startTime) {
+      const currentUtc = zonedLocalToUtcIso(startTime, timezone);
+      setStartTime(utcIsoToZonedLocal(currentUtc, newTz));
+    }
+    if (endTime) {
+      const currentUtc = zonedLocalToUtcIso(endTime, timezone);
+      setEndTime(utcIsoToZonedLocal(currentUtc, newTz));
+    }
+    setTimezone(newTz);
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -82,8 +99,11 @@ export function AdminSchedulePage() {
       return;
     }
 
-    const startUtc = new Date(startTime).getTime();
-    const endUtc = new Date(endTime).getTime();
+    const startIso = zonedLocalToUtcIso(startTime, timezone);
+    const endIso = zonedLocalToUtcIso(endTime, timezone);
+
+    const startUtc = new Date(startIso).getTime();
+    const endUtc = new Date(endIso).getTime();
 
     if (isNaN(startUtc) || isNaN(endUtc)) {
       setMessage({ type: "error", text: "Invalid date format." });
@@ -103,26 +123,30 @@ export function AdminSchedulePage() {
       const payload: Partial<CompetitionSchedule> = {
         name: name.trim(),
         is_enabled: isEnabled,
-        start_time: new Date(startTime).toISOString(),
-        end_time: new Date(endTime).toISOString(),
+        start_time: startIso,
+        end_time: endIso,
         timezone,
         title: title.trim() || DEFAULT_COMPETITION_SCHEDULE.title,
         description: description.trim() || null,
       };
 
       const res = await updateCompetitionSchedule(payload);
-      if (res.success) {
-        setSchedule((prev) => ({ ...prev, ...payload }));
+      if (res.success && res.data) {
+        setSchedule(res.data);
+        setName(res.data.name);
+        setIsEnabled(res.data.is_enabled);
+        const tz = res.data.timezone || timezone;
+        setTimezone(tz);
+        setStartTime(utcIsoToZonedLocal(res.data.start_time, tz));
+        setEndTime(utcIsoToZonedLocal(res.data.end_time, tz));
         setMessage({
           type: "success",
-          text: res.error
-            ? res.error
-            : "Competition schedule updated successfully! Public countdown is synchronized.",
+          text: "Competition schedule updated in database successfully! Public countdown is synchronized.",
         });
       } else {
         setMessage({
           type: "error",
-          text: res.error || "Failed to update competition schedule.",
+          text: res.error || "Failed to update competition schedule in database.",
         });
       }
     } catch (err: any) {
@@ -135,13 +159,15 @@ export function AdminSchedulePage() {
     }
   };
 
-  // Preview status calculation
+  // Preview status calculation using precise zoned timestamps
+  const previewStartIso = startTime ? zonedLocalToUtcIso(startTime, timezone) : schedule.start_time;
+  const previewEndIso = endTime ? zonedLocalToUtcIso(endTime, timezone) : schedule.end_time;
   const previewSchedule: CompetitionSchedule = {
     ...schedule,
     name: name || schedule.name,
     is_enabled: isEnabled,
-    start_time: startTime ? new Date(startTime).toISOString() : schedule.start_time,
-    end_time: endTime ? new Date(endTime).toISOString() : schedule.end_time,
+    start_time: previewStartIso,
+    end_time: previewEndIso,
     timezone,
     title: title || schedule.title,
     description: description || schedule.description,
@@ -149,21 +175,12 @@ export function AdminSchedulePage() {
 
   const previewStatus: CompetitionStatus = getCompetitionStatus(previewSchedule);
 
-  const formatZoned = (isoDate: string) => {
-    try {
-      return new Intl.DateTimeFormat("en-US", {
-        timeZone: timezone,
-        weekday: "short",
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
-        timeZoneName: "short",
-      }).format(new Date(isoDate));
-    } catch {
-      return isoDate;
-    }
+  const formatZoned = (localOrIso: string) => {
+    if (!localOrIso) return "Not set";
+    const iso = localOrIso.includes("Z") || localOrIso.includes("+")
+      ? localOrIso
+      : zonedLocalToUtcIso(localOrIso, timezone);
+    return formatZonedDate(iso, timezone);
   };
 
   return (
@@ -209,19 +226,44 @@ export function AdminSchedulePage() {
             </p>
           </div>
 
-          {/* Current Status Pill */}
-          <div
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "0.625rem",
-              padding: "0.5rem 1rem",
-              borderRadius: 12,
-              background: "#FFFFFF",
-              border: "1px solid #F0DCE2",
-              boxShadow: "0 2px 8px rgba(74, 6, 28, 0.04)",
-            }}
-          >
+          {/* Current Status Pill & Reload Action */}
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
+            <button
+              type="button"
+              onClick={() => void loadSchedule()}
+              disabled={loading || saving}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.375rem",
+                padding: "0.5rem 0.875rem",
+                borderRadius: 12,
+                background: "#FFFFFF",
+                border: "1px solid #F0DCE2",
+                color: "#7A0C2E",
+                fontSize: "0.8125rem",
+                fontWeight: 700,
+                cursor: loading ? "not-allowed" : "pointer",
+                boxShadow: "0 2px 8px rgba(74, 6, 28, 0.04)",
+              }}
+              title="Reload schedule directly from Supabase database"
+            >
+              <RefreshCw size={14} style={{ animation: loading ? "spin 1s linear infinite" : "none" }} />
+              <span>Reload DB</span>
+            </button>
+
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.625rem",
+                padding: "0.5rem 1rem",
+                borderRadius: 12,
+                background: "#FFFFFF",
+                border: "1px solid #F0DCE2",
+                boxShadow: "0 2px 8px rgba(74, 6, 28, 0.04)",
+              }}
+            >
             <span style={{ fontSize: "0.8125rem", color: "#6B6870", fontWeight: 600 }}>Voting Window:</span>
             <span
               style={{
@@ -259,6 +301,7 @@ export function AdminSchedulePage() {
             </span>
           </div>
         </div>
+      </div>
 
         {/* Feedback Banner */}
         {message && (
@@ -392,7 +435,7 @@ export function AdminSchedulePage() {
                   <select
                     id="comp-tz"
                     value={timezone}
-                    onChange={(e) => setTimezone(e.target.value)}
+                    onChange={(e) => handleTimezoneChange(e.target.value)}
                     style={{
                       width: "100%",
                       padding: "0.85rem 1rem",
@@ -449,7 +492,10 @@ export function AdminSchedulePage() {
                   />
                   {startTime && (
                     <div style={{ fontSize: "0.75rem", color: "#7A0C2E", marginTop: 4, fontWeight: 600 }}>
-                      Local: {formatZoned(startTime)}
+                      Selected: {formatZoned(startTime)}
+                      <span style={{ color: "#6B6870", marginLeft: 8, fontWeight: 400 }}>
+                        (UTC: {zonedLocalToUtcIso(startTime, timezone)})
+                      </span>
                     </div>
                   )}
                 </div>
@@ -486,6 +532,9 @@ export function AdminSchedulePage() {
                   {endTime && (
                     <div style={{ fontSize: "0.75rem", color: "#E51B3E", marginTop: 4, fontWeight: 600 }}>
                       Deadline: {formatZoned(endTime)}
+                      <span style={{ color: "#6B6870", marginLeft: 8, fontWeight: 400 }}>
+                        (UTC: {zonedLocalToUtcIso(endTime, timezone)})
+                      </span>
                     </div>
                   )}
                 </div>
@@ -574,17 +623,10 @@ export function AdminSchedulePage() {
                   onClick={() => {
                     setName(schedule.name);
                     setIsEnabled(schedule.is_enabled);
-                    setStartTime(
-                      schedule.start_time
-                        ? new Date(schedule.start_time).toISOString().slice(0, 16)
-                        : ""
-                    );
-                    setEndTime(
-                      schedule.end_time
-                        ? new Date(schedule.end_time).toISOString().slice(0, 16)
-                        : ""
-                    );
-                    setTimezone(schedule.timezone || "America/New_York");
+                    const tz = schedule.timezone || "America/New_York";
+                    setTimezone(tz);
+                    setStartTime(utcIsoToZonedLocal(schedule.start_time, tz));
+                    setEndTime(utcIsoToZonedLocal(schedule.end_time, tz));
                     setTitle(schedule.title);
                     setDescription(schedule.description || "");
                     setMessage(null);

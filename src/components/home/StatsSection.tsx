@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Users, Vote, Heart } from "lucide-react";
-import { supabase, fetchCandidatesSafe, getCandidateScore } from "@/lib/supabase";
+import { fetchCandidatesSafe, getCandidateScore } from "@/lib/supabase";
 import { formatNumber } from "@/lib/utils";
 
 interface Stats {
@@ -47,34 +47,17 @@ export function StatsSection() {
 
     async function loadStats() {
       try {
-        const [candidatesRes, votesRes] = await Promise.all([
-          supabase.from("public_candidates").select("id", { count: "exact", head: true }),
-          supabase.from("public_candidates").select("current_score"),
-        ]);
-
-        let totalCandidates = candidatesRes.count ?? 0;
-        let totalVotes = ((votesRes.data as Array<{ current_score?: number }>) ?? []).reduce(
-          (sum: number, c: { current_score?: number }) => sum + (c.current_score ?? 0),
-          0
-        );
-
-        if (totalCandidates === 0) {
-          const fallback = await fetchCandidatesSafe();
-          totalCandidates = fallback.length;
-          totalVotes = fallback.reduce((sum, c) => sum + getCandidateScore(c), 0);
-        }
-
+        const candidates = await fetchCandidatesSafe();
+        const totalCandidates = candidates.length;
+        const totalVotes = candidates.reduce((sum, c) => sum + getCandidateScore(c), 0);
         const totalSupporters = Math.round(totalVotes * 0.6); // approx unique supporters
 
         if (isMounted) {
           setStats({ totalCandidates, totalVotes, totalSupporters });
         }
       } catch {
-        const fallback = await fetchCandidatesSafe();
-        const totalCandidates = fallback.length;
-        const totalVotes = fallback.reduce((sum, c) => sum + getCandidateScore(c), 0);
         if (isMounted) {
-          setStats({ totalCandidates, totalVotes, totalSupporters: Math.round(totalVotes * 0.6) });
+          setStats({ totalCandidates: 0, totalVotes: 0, totalSupporters: 0 });
         }
       }
     }

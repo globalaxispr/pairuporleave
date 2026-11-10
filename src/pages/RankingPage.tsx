@@ -1,11 +1,12 @@
 import { useEffect, useState, useMemo } from "react";
 import { Helmet } from "react-helmet-async";
 import { Trophy, TrendingUp, Vote } from "lucide-react";
-import { supabase, type PublicCandidate, fetchCandidatesSafe, getCandidateScore, pickPublicFields } from "@/lib/supabase";
+import { supabase, type PublicCandidate, fetchCandidatesSafe, getCandidateScore, applyRealtimeCandidateToCache } from "@/lib/supabase";
 import { formatNumber, SITE_URL } from "@/lib/utils";
 import { VoteModal } from "@/components/voting/VoteModal";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { ErrorState } from "@/components/ui/ErrorState";
+import { useCompetitionSchedule } from "@/hooks/useCompetitionSchedule";
 
 export function RankingPage() {
   const [candidates, setCandidates] = useState<PublicCandidate[]>([]);
@@ -13,6 +14,7 @@ export function RankingPage() {
   const [error, setError] = useState<string | null>(null);
   const [category, setCategory] = useState("");
   const [selectedCandidate, setSelectedCandidate] = useState<PublicCandidate | null>(null);
+  const { isVotingClosed } = useCompetitionSchedule();
 
   async function load() {
     setLoading(true);
@@ -39,13 +41,19 @@ export function RankingPage() {
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "candidates" },
         (payload) => {
-          // pickPublicFields strips any internal columns (paid_votes, bonus_votes,
-          // penalty_points, etc.) from the realtime event before merging into state.
-          const updated = pickPublicFields(payload.new as Record<string, unknown>);
+          // applyRealtimeCandidateToCache strips internal columns and syncs/invalidates
+          // the shared public candidates memory cache before merging into state.
+          const updated = applyRealtimeCandidateToCache(
+            payload.new as Record<string, unknown>,
+            payload.eventType
+          );
+          if (!updated) return;
           setCandidates((prev) =>
-            [...prev.map((c) =>
-              c.id === updated.id ? { ...c, ...updated } : c
-            )].sort((a, b) => getCandidateScore(b) - getCandidateScore(a))
+            updated.status !== "active"
+              ? prev.filter((c) => c.id !== updated.id)
+              : [...prev.map((c) => (c.id === updated.id ? { ...c, ...updated } : c))].sort(
+                  (a, b) => getCandidateScore(b) - getCandidateScore(a)
+                )
           );
         }
       )
@@ -82,14 +90,19 @@ export function RankingPage() {
   return (
     <>
       <Helmet>
-        <title>Live Rankings — Pair Up or Leave</title>
+        <title>Live Leaderboard & Current Standings — Pair Up or Leave</title>
         <meta
           name="description"
-          content="Live standings and rankings of all candidates and couples on Pair Up or Leave. Votes update in real time."
+          content="See who is leading right now on Pair Up or Leave. Live competition rankings updated in real time as verified votes come in."
         />
-        <meta property="og:title" content="Live Rankings — Pair Up or Leave" />
+        <meta property="og:title" content="Live Leaderboard & Current Standings — Pair Up or Leave" />
         <meta property="og:description" content="See who's leading the competition right now. Live standings updated in real time. Cast your vote and change the rankings." />
         <meta property="og:url" content={`${SITE_URL}/ranking`} />
+        <meta property="og:image" content={`${SITE_URL}/og-image.jpg`} />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Live Leaderboard & Current Standings — Pair Up or Leave" />
+        <meta name="twitter:description" content="See who's leading the competition right now. Live standings updated in real time." />
+        <meta name="twitter:image" content={`${SITE_URL}/og-image.jpg`} />
         <link rel="canonical" href={`${SITE_URL}/ranking`} />
       </Helmet>
 
@@ -238,6 +251,7 @@ export function RankingPage() {
             </div>
           ) : (
             <div style={{ maxWidth: 960, margin: "0 auto" }}>
+              <h2 className="sr-only">Top 3 Podium Leaders</h2>
               {/* Top 3 Podium Cards */}
               <div
                 style={{
@@ -347,11 +361,20 @@ export function RankingPage() {
 
                       <button
                         className="btn-vote"
-                        onClick={() => setSelectedCandidate(top1)}
-                        style={{ width: "100%", justifyContent: "center", minHeight: 48, fontSize: "1.0625rem" }}
+                        disabled={isVotingClosed}
+                        onClick={() => !isVotingClosed && setSelectedCandidate(top1)}
+                        style={{
+                          width: "100%",
+                          justifyContent: "center",
+                          minHeight: 48,
+                          fontSize: "1.0625rem",
+                          opacity: isVotingClosed ? 0.5 : 1,
+                          cursor: isVotingClosed ? "not-allowed" : "pointer",
+                          filter: isVotingClosed ? "grayscale(1)" : "none",
+                        }}
                       >
                         <Vote size={18} />
-                        VOTE FOR #1
+                        {isVotingClosed ? "VOTING CLOSED" : "VOTE FOR #1"}
                       </button>
                     </div>
                   </div>
@@ -452,11 +475,19 @@ export function RankingPage() {
 
                       <button
                         className="btn-vote"
-                        onClick={() => setSelectedCandidate(top2)}
-                        style={{ width: "100%", justifyContent: "center", minHeight: 46 }}
+                        disabled={isVotingClosed}
+                        onClick={() => !isVotingClosed && setSelectedCandidate(top2)}
+                        style={{
+                          width: "100%",
+                          justifyContent: "center",
+                          minHeight: 46,
+                          opacity: isVotingClosed ? 0.5 : 1,
+                          cursor: isVotingClosed ? "not-allowed" : "pointer",
+                          filter: isVotingClosed ? "grayscale(1)" : "none",
+                        }}
                       >
                         <Vote size={16} />
-                        Vote for #2
+                        {isVotingClosed ? "VOTING CLOSED" : "Vote for #2"}
                       </button>
                     </div>
                   </div>
@@ -557,11 +588,19 @@ export function RankingPage() {
 
                       <button
                         className="btn-vote"
-                        onClick={() => setSelectedCandidate(top3)}
-                        style={{ width: "100%", justifyContent: "center", minHeight: 46 }}
+                        disabled={isVotingClosed}
+                        onClick={() => !isVotingClosed && setSelectedCandidate(top3)}
+                        style={{
+                          width: "100%",
+                          justifyContent: "center",
+                          minHeight: 46,
+                          opacity: isVotingClosed ? 0.5 : 1,
+                          cursor: isVotingClosed ? "not-allowed" : "pointer",
+                          filter: isVotingClosed ? "grayscale(1)" : "none",
+                        }}
                       >
                         <Vote size={16} />
-                        Vote for #3
+                        {isVotingClosed ? "VOTING CLOSED" : "Vote for #3"}
                       </button>
                     </div>
                   </div>
@@ -571,18 +610,18 @@ export function RankingPage() {
               {/* Ranks #4 and onward */}
               {remaining.length > 0 && (
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                  <div
+                  <h2
                     style={{
                       fontSize: "0.875rem",
                       fontWeight: 700,
                       color: "#7A0C2E",
                       textTransform: "uppercase",
                       letterSpacing: "0.04em",
-                      marginBottom: "0.25rem",
+                      margin: "0 0 0.25rem",
                     }}
                   >
                     Contenders (#4 & Above)
-                  </div>
+                  </h2>
 
                   {remaining.map((cand, idx) => {
                     const rankNum = idx + 4;
@@ -671,11 +710,20 @@ export function RankingPage() {
 
                         <button
                           className="btn-vote"
-                          onClick={() => setSelectedCandidate(cand)}
-                          style={{ padding: "0.5rem 0.875rem", fontSize: "0.8125rem", minHeight: 40, flexShrink: 0 }}
+                          disabled={isVotingClosed}
+                          onClick={() => !isVotingClosed && setSelectedCandidate(cand)}
+                          style={{
+                            padding: "0.5rem 0.875rem",
+                            fontSize: "0.8125rem",
+                            minHeight: 44,
+                            flexShrink: 0,
+                            opacity: isVotingClosed ? 0.5 : 1,
+                            cursor: isVotingClosed ? "not-allowed" : "pointer",
+                            filter: isVotingClosed ? "grayscale(1)" : "none",
+                          }}
                         >
                           <Vote size={14} />
-                          Vote
+                          {isVotingClosed ? "CLOSED" : "Vote"}
                         </button>
                       </div>
                     );

@@ -14,18 +14,56 @@ import { IS_PLATFORM_SERVICE_FEE_ENABLED } from "@/lib/supabase";
 import { SITE_URL } from "@/lib/utils";
 
 export function HomePage() {
+  const description = IS_PLATFORM_SERVICE_FEE_ENABLED
+    ? "Pair Up or Leave is the official voting platform. Support your favorite couples and candidates with secure Stripe payments. $1/vote base ($1.34 w/ service fee for 1 vote) for individuals, $2/vote base ($2.37 w/ service fee for 1 vote) for couples. No account required."
+    : "Pair Up or Leave is the official voting platform. Support your favorite couples and candidates with secure Stripe payments. $1/vote for individuals, $2/vote for couples. No account required.";
+
+  const websiteSchema = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": `${SITE_URL}/#website`,
+        url: `${SITE_URL}/`,
+        name: "Pair Up or Leave",
+        description,
+      },
+      {
+        "@type": "Organization",
+        "@id": `${SITE_URL}/#organization`,
+        name: "Pair Up or Leave",
+        url: `${SITE_URL}/`,
+        logo: `${SITE_URL}/logo@2x.png`,
+        sameAs: ["https://www.youtube.com/@pairuporleave"],
+      },
+    ],
+  };
+
   return (
     <>
       <Helmet>
-        <title>Pair Up or Leave — Vote for Your Favorite Couples & Candidates</title>
+        <title>Pair Up or Leave — Official Live Voting Competition | Vote Now</title>
+        <meta name="description" content={description} />
+        <meta property="og:title" content="Pair Up or Leave — Official Live Voting Competition | Vote Now" />
         <meta
-          name="description"
-          content={IS_PLATFORM_SERVICE_FEE_ENABLED ? "Pair Up or Leave is the official voting platform. Support your favorite couples and candidates with secure Stripe payments. $1/vote base ($1.34 w/ service fee for 1 vote) for individuals, $2/vote base ($2.37 w/ service fee for 1 vote) for couples. No account required." : "Pair Up or Leave is the official voting platform. Support your favorite couples and candidates with secure Stripe payments. $1/vote for individuals, $2/vote for couples. No account required."}
+          property="og:description"
+          content={
+            IS_PLATFORM_SERVICE_FEE_ENABLED
+              ? "Support your favorite couples and candidates. $1/vote base ($1.34 w/ fee) for individuals, $2/vote base ($2.37 w/ fee) for couples. Secure payments via Stripe."
+              : "Support your favorite couples and candidates. $1/vote for individuals, $2/vote for couples. Secure payments via Stripe."
+          }
         />
-        <meta property="og:title" content="Pair Up or Leave — Vote for Your Favorite Couples & Candidates" />
-        <meta property="og:description" content={IS_PLATFORM_SERVICE_FEE_ENABLED ? "Support your favorite couples and candidates. $1/vote base ($1.34 w/ fee) for individuals, $2/vote base ($2.37 w/ fee) for couples. Secure payments via Stripe." : "Support your favorite couples and candidates. $1/vote for individuals, $2/vote for couples. Secure payments via Stripe."} />
         <meta property="og:url" content={`${SITE_URL}/`} />
+        <meta property="og:image" content={`${SITE_URL}/og-image.jpg`} />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Pair Up or Leave — Official Live Voting Competition | Vote Now" />
+        <meta
+          name="twitter:description"
+          content="Support your favorite couples ($2/vote) and individual candidates ($1/vote). Watch the live show and track real-time rankings."
+        />
+        <meta name="twitter:image" content={`${SITE_URL}/og-image.jpg`} />
         <link rel="canonical" href={`${SITE_URL}/`} />
+        <script type="application/ld+json">{JSON.stringify(websiteSchema)}</script>
       </Helmet>
 
       <main id="main-content" style={{ paddingBottom: "3.5rem" }}>

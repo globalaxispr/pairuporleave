@@ -1,14 +1,16 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Trophy, TrendingUp, Vote, ArrowRight } from "lucide-react";
-import { supabase, fetchCandidatesSafe, getCandidateScore, pickPublicFields, type PublicCandidate } from "@/lib/supabase";
+import { supabase, fetchCandidatesSafe, getCandidateScore, applyRealtimeCandidateToCache, type PublicCandidate } from "@/lib/supabase";
 import { formatNumber } from "@/lib/utils";
 import { VoteModal } from "@/components/voting/VoteModal";
+import { useCompetitionSchedule } from "@/hooks/useCompetitionSchedule";
 
 export function LiveRankingSection() {
   const [candidates, setCandidates] = useState<PublicCandidate[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCandidate, setSelectedCandidate] = useState<PublicCandidate | null>(null);
+  const { isVotingClosed } = useCompetitionSchedule();
 
   useEffect(() => {
     async function load() {
@@ -30,8 +32,15 @@ export function LiveRankingSection() {
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "candidates" },
         (payload) => {
-          const updated = pickPublicFields(payload.new as Record<string, unknown>);
+          const updated = applyRealtimeCandidateToCache(
+            payload.new as Record<string, unknown>,
+            payload.eventType
+          );
+          if (!updated) return;
           setCandidates((prev) => {
+            if (updated.status !== "active") {
+              return prev.filter((c) => c.id !== updated.id);
+            }
             const mapped = prev.map((c) =>
               c.id === updated.id ? { ...c, ...updated } : c
             );
@@ -239,7 +248,7 @@ export function LiveRankingSection() {
                         )}
                       </div>
                       <div style={{ fontSize: "0.8125rem", color: "#6B6870", marginBottom: "0.875rem" }}>
-                        {top1.position} Â· <span style={{ color: "#7A0C2E", fontWeight: 600 }}>{top1.category}</span>
+                        {top1.position} · <span style={{ color: "#7A0C2E", fontWeight: 600 }}>{top1.category}</span>
                       </div>
 
                       {/* Vote pill */}
@@ -268,18 +277,22 @@ export function LiveRankingSection() {
 
                       <button
                         className="btn-vote"
-                        onClick={() => setSelectedCandidate(top1)}
+                        disabled={isVotingClosed}
+                        onClick={() => !isVotingClosed && setSelectedCandidate(top1)}
                         style={{
                           width: "100%",
                           justifyContent: "center",
                           minHeight: 48,
                           fontSize: "1rem",
                           fontWeight: 800,
+                          opacity: isVotingClosed ? 0.5 : 1,
+                          cursor: isVotingClosed ? "not-allowed" : "pointer",
+                          filter: isVotingClosed ? "grayscale(1)" : "none",
                         }}
-                        aria-label={`Vote for #1 ${top1.name}`}
+                        aria-label={isVotingClosed ? `Voting is closed for ${top1.name}` : `Vote for #1 ${top1.name}`}
                       >
                         <Vote size={17} />
-                        VOTE FOR #1
+                        {isVotingClosed ? "VOTING CLOSED" : "VOTE FOR #1"}
                       </button>
                     </div>
                   </div>
@@ -366,7 +379,8 @@ export function LiveRankingSection() {
 
                       <button
                         className="btn-vote"
-                        onClick={() => setSelectedCandidate(top2)}
+                        disabled={isVotingClosed}
+                        onClick={() => !isVotingClosed && setSelectedCandidate(top2)}
                         style={{
                           width: "100%",
                           justifyContent: "center",
@@ -374,11 +388,14 @@ export function LiveRankingSection() {
                           fontSize: "0.8125rem",
                           padding: "0.375rem 0.5rem",
                           marginTop: "auto",
+                          opacity: isVotingClosed ? 0.5 : 1,
+                          cursor: isVotingClosed ? "not-allowed" : "pointer",
+                          filter: isVotingClosed ? "grayscale(1)" : "none",
                         }}
-                        aria-label={`Vote for #2 ${top2.name}`}
+                        aria-label={isVotingClosed ? `Voting is closed for ${top2.name}` : `Vote for #2 ${top2.name}`}
                       >
                         <Vote size={13} />
-                        Vote #2
+                        {isVotingClosed ? "CLOSED" : "Vote #2"}
                       </button>
                     </div>
                   )}
@@ -455,7 +472,8 @@ export function LiveRankingSection() {
 
                       <button
                         className="btn-vote"
-                        onClick={() => setSelectedCandidate(top3)}
+                        disabled={isVotingClosed}
+                        onClick={() => !isVotingClosed && setSelectedCandidate(top3)}
                         style={{
                           width: "100%",
                           justifyContent: "center",
@@ -463,11 +481,14 @@ export function LiveRankingSection() {
                           fontSize: "0.8125rem",
                           padding: "0.375rem 0.5rem",
                           marginTop: "auto",
+                          opacity: isVotingClosed ? 0.5 : 1,
+                          cursor: isVotingClosed ? "not-allowed" : "pointer",
+                          filter: isVotingClosed ? "grayscale(1)" : "none",
                         }}
-                        aria-label={`Vote for #3 ${top3.name}`}
+                        aria-label={isVotingClosed ? `Voting is closed for ${top3.name}` : `Vote for #3 ${top3.name}`}
                       >
                         <Vote size={13} />
-                        Vote #3
+                        {isVotingClosed ? "CLOSED" : "Vote #3"}
                       </button>
                     </div>
                   )}
@@ -540,11 +561,20 @@ export function LiveRankingSection() {
                     </div>
                     <button
                       className="btn-vote"
-                      onClick={() => setSelectedCandidate(top2)}
-                      style={{ width: "100%", justifyContent: "center", minHeight: 44 }}
+                      disabled={isVotingClosed}
+                      onClick={() => !isVotingClosed && setSelectedCandidate(top2)}
+                      style={{
+                        width: "100%",
+                        justifyContent: "center",
+                        minHeight: 44,
+                        opacity: isVotingClosed ? 0.5 : 1,
+                        cursor: isVotingClosed ? "not-allowed" : "pointer",
+                        filter: isVotingClosed ? "grayscale(1)" : "none",
+                      }}
+                      aria-label={isVotingClosed ? `Voting is closed for ${top2.name}` : `Vote for #2 ${top2.name}`}
                     >
                       <Vote size={15} />
-                      Vote for #2
+                      {isVotingClosed ? "VOTING CLOSED" : "Vote for #2"}
                     </button>
                   </div>
                 )}
@@ -617,7 +647,7 @@ export function LiveRankingSection() {
                         </span>
                       )}
                     </div>
-                    <div style={{ fontSize: "0.8125rem", color: "#6B6870", marginBottom: "1rem" }}>{top1.position} Â· {top1.category}</div>
+                    <div style={{ fontSize: "0.8125rem", color: "#6B6870", marginBottom: "1rem" }}>{top1.position} · {top1.category}</div>
                     <div
                       style={{
                         background: "#FFF8FA",
@@ -634,11 +664,22 @@ export function LiveRankingSection() {
                     </div>
                     <button
                       className="btn-vote"
-                      onClick={() => setSelectedCandidate(top1)}
-                      style={{ width: "100%", justifyContent: "center", minHeight: 48, fontSize: "1rem", fontWeight: 800 }}
+                      disabled={isVotingClosed}
+                      onClick={() => !isVotingClosed && setSelectedCandidate(top1)}
+                      style={{
+                        width: "100%",
+                        justifyContent: "center",
+                        minHeight: 48,
+                        fontSize: "1rem",
+                        fontWeight: 800,
+                        opacity: isVotingClosed ? 0.5 : 1,
+                        cursor: isVotingClosed ? "not-allowed" : "pointer",
+                        filter: isVotingClosed ? "grayscale(1)" : "none",
+                      }}
+                      aria-label={isVotingClosed ? `Voting is closed for ${top1.name}` : `Vote for #1 ${top1.name}`}
                     >
                       <Vote size={18} />
-                      VOTE FOR #1
+                      {isVotingClosed ? "VOTING CLOSED" : "VOTE FOR #1"}
                     </button>
                   </div>
                 )}
@@ -704,11 +745,20 @@ export function LiveRankingSection() {
                     </div>
                     <button
                       className="btn-vote"
-                      onClick={() => setSelectedCandidate(top3)}
-                      style={{ width: "100%", justifyContent: "center", minHeight: 44 }}
+                      disabled={isVotingClosed}
+                      onClick={() => !isVotingClosed && setSelectedCandidate(top3)}
+                      style={{
+                        width: "100%",
+                        justifyContent: "center",
+                        minHeight: 44,
+                        opacity: isVotingClosed ? 0.5 : 1,
+                        cursor: isVotingClosed ? "not-allowed" : "pointer",
+                        filter: isVotingClosed ? "grayscale(1)" : "none",
+                      }}
+                      aria-label={isVotingClosed ? `Voting is closed for ${top3.name}` : `Vote for #3 ${top3.name}`}
                     >
                       <Vote size={15} />
-                      Vote for #3
+                      {isVotingClosed ? "VOTING CLOSED" : "Vote for #3"}
                     </button>
                   </div>
                 )}
@@ -716,20 +766,20 @@ export function LiveRankingSection() {
 
               {/* View Full Ranking Button */}
               <div style={{ textAlign: "center", marginTop: "1.5rem" }}>
-                <Link to="/ranking" style={{ textDecoration: "none" }}>
-                  <button
-                    className="btn-outline"
-                    style={{
-                      minHeight: 46,
-                      padding: "0.625rem 1.5rem",
-                      fontSize: "0.9375rem",
-                      fontWeight: 700,
-                    }}
-                    aria-label="View full ranking leaderboard"
-                  >
-                    <span>View Full Ranking</span>
-                    <ArrowRight size={16} />
-                  </button>
+                <Link
+                  to="/ranking"
+                  className="btn-outline"
+                  style={{
+                    textDecoration: "none",
+                    minHeight: 46,
+                    padding: "0.625rem 1.5rem",
+                    fontSize: "0.9375rem",
+                    fontWeight: 700,
+                  }}
+                  aria-label="View full ranking leaderboard"
+                >
+                  <span>View Full Ranking</span>
+                  <ArrowRight size={16} />
                 </Link>
               </div>
             </div>

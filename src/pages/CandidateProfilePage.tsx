@@ -2,17 +2,20 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { Vote, ArrowLeft, TrendingUp, User, MessageSquare, Eye } from "lucide-react";
-import { supabase, type PublicCandidate, fetchCandidateByIdSafe, getCandidateScore, pickPublicFields, getSingleVoteAllInPriceFormatted, IS_PLATFORM_SERVICE_FEE_ENABLED } from "@/lib/supabase";
+import { supabase, type PublicCandidate, fetchCandidateByIdSafe, getCandidateScore, applyRealtimeCandidateToCache, getSingleVoteAllInPriceFormatted, IS_PLATFORM_SERVICE_FEE_ENABLED } from "@/lib/supabase";
 import { formatNumber, SITE_URL } from "@/lib/utils";
 import { VoteModal } from "@/components/voting/VoteModal";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { ErrorState } from "@/components/ui/ErrorState";
+import { useCompetitionSchedule } from "@/hooks/useCompetitionSchedule";
+import { CandidateShareButtons } from "@/components/candidates/CandidateShareButtons";
 
 export function CandidateProfilePage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [candidate, setCandidate] = useState<PublicCandidate | null>(null);
   const [loading, setLoading] = useState(true);
+  const { isVotingClosed } = useCompetitionSchedule();
   const [error, setError] = useState<string | null>(null);
   const [imgError, setImgError] = useState(false);
   const [imgErrorTwo, setImgErrorTwo] = useState(false);
@@ -42,7 +45,11 @@ export function CandidateProfilePage() {
         event: "UPDATE", schema: "public", table: "candidates",
         filter: `id=eq.${id}`,
       }, (payload) => {
-        const updated = pickPublicFields(payload.new as Record<string, unknown>);
+        const updated = applyRealtimeCandidateToCache(
+          payload.new as Record<string, unknown>,
+          payload.eventType
+        );
+        if (!updated) return;
         setCandidate((prev) => prev ? { ...prev, ...updated } : prev);
       })
       .subscribe();
@@ -51,28 +58,68 @@ export function CandidateProfilePage() {
 
   if (loading) return <LoadingState size="lg" message="Loading candidate..." />;
   if (error || !candidate) return (
-    <ErrorState
-      title="Candidate not found"
-      message="This candidate does not exist or has been removed."
-      onRetry={() => navigate("/candidates")}
-    />
+    <>
+      <Helmet>
+        <title>Candidate Not Found — Pair Up or Leave</title>
+        <meta name="robots" content="noindex, nofollow" />
+      </Helmet>
+      <ErrorState
+        title="Candidate not found"
+        message="This candidate does not exist or has been removed."
+        onRetry={() => navigate("/candidates")}
+      />
+    </>
   );
 
   const isPaused = candidate.status === "paused";
   const isCouple = candidate.candidate_type === "couple";
   const candidateDisplayName = candidate.display_name || candidate.name;
   const initials = candidate.name.split(" ").slice(0, 2).map((n) => n[0]).join("").toUpperCase();
+  const ogImageUrl = `${SITE_URL}/og/${candidate.id}.jpg`;
+  const profileSchema = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "BreadcrumbList",
+        itemListElement: [
+          { "@type": "ListItem", position: 1, name: "Home", item: `${SITE_URL}/` },
+          { "@type": "ListItem", position: 2, name: "Candidates", item: `${SITE_URL}/candidates` },
+          { "@type": "ListItem", position: 3, name: candidateDisplayName, item: `${SITE_URL}/candidate/${candidate.id}` },
+        ],
+      },
+      {
+        "@type": "Person",
+        name: candidateDisplayName,
+        jobTitle: candidate.position,
+        description: candidate.description ?? `Contestant in ${candidate.category} on Pair Up or Leave.`,
+        image: ogImageUrl,
+        url: `${SITE_URL}/candidate/${candidate.id}`,
+      },
+    ],
+  };
 
   return (
     <>
       <Helmet>
-        <title>{candidate.name} — Pair Up or Leave</title>
-        <meta name="description" content={`Support ${candidate.name} — ${candidate.position}. ${candidate.description ?? ""} Vote now on Pair Up or Leave.`} />
-        <meta property="og:title" content={`${candidate.name} — Pair Up or Leave`} />
-        <meta property="og:description" content={`Support ${candidate.name} — ${candidate.position}. Cast your votes now on Pair Up or Leave. ${IS_PLATFORM_SERVICE_FEE_ENABLED ? (isCouple ? "$2/vote base ($2.37 total for 1 vote w/ service fee)" : "$1/vote base ($1.34 total for 1 vote w/ service fee)") : (isCouple ? "$2/vote" : "$1/vote")}.`} />
+        <title>{`Vote for ${candidateDisplayName} (${candidate.category || "Couple"}) — Pair Up or Leave`}</title>
+        <meta name="description" content={`Support ${candidateDisplayName} on Pair Up or Leave. ${candidate.description ?? ""} Cast your verified vote in real time!`} />
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="Pair Up or Leave" />
+        <meta property="og:title" content={`Vote for ${candidateDisplayName} — Pair Up or Leave`} />
+        <meta property="og:description" content={`Support ${candidateDisplayName} in the official PAIR UP OR LEAVE competition! Cast your votes now. ${IS_PLATFORM_SERVICE_FEE_ENABLED ? (isCouple ? "$2/vote base ($2.37 total for 1 vote w/ service fee)" : "$1/vote base ($1.34 total for 1 vote w/ service fee)") : (isCouple ? "$2/vote" : "$1/vote")}.`} />
         <meta property="og:url" content={`${SITE_URL}/candidate/${candidate.id}`} />
+        <meta property="og:image" content={ogImageUrl} />
+        <meta property="og:image:secure_url" content={ogImageUrl} />
+        <meta property="og:image:type" content="image/jpeg" />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta property="og:image:alt" content={`Vote for ${candidateDisplayName} — Pair Up or Leave`} />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={`Vote for ${candidateDisplayName} — Pair Up or Leave`} />
+        <meta name="twitter:description" content={`Support ${candidateDisplayName} on Pair Up or Leave! Cast your verified votes now.`} />
+        <meta name="twitter:image" content={ogImageUrl} />
         <link rel="canonical" href={`${SITE_URL}/candidate/${candidate.id}`} />
-        {candidate.photo_url && <meta property="og:image" content={candidate.photo_url} />}
+        <script type="application/ld+json">{JSON.stringify(profileSchema)}</script>
       </Helmet>
 
       <main id="main-content" style={{ minHeight: "80vh", background: "#ffffff" }}>
@@ -241,15 +288,40 @@ export function CandidateProfilePage() {
               {/* Vote CTA */}
               <button
                 className="btn-vote"
-                style={{ width: "100%", justifyContent: "center", padding: "1rem", fontSize: "1.125rem", opacity: isPaused ? 0.5 : 1, cursor: isPaused ? "not-allowed" : "pointer" }}
-                onClick={() => !isPaused && setVoteModalOpen(true)}
-                disabled={isPaused}
-                aria-label={isPaused ? "Voting paused for this candidate" : `Vote for ${candidate.name}`}
+                style={{
+                  width: "100%",
+                  justifyContent: "center",
+                  padding: "1rem",
+                  fontSize: "1.125rem",
+                  opacity: isPaused || isVotingClosed ? 0.5 : 1,
+                  cursor: isPaused || isVotingClosed ? "not-allowed" : "pointer",
+                  filter: isVotingClosed ? "grayscale(1)" : "none",
+                }}
+                onClick={() => !isPaused && !isVotingClosed && setVoteModalOpen(true)}
+                disabled={isPaused || isVotingClosed}
+                aria-label={
+                  isVotingClosed
+                    ? "Voting is closed"
+                    : isPaused
+                    ? "Voting paused for this candidate"
+                    : `Vote for ${candidate.name}`
+                }
                 id="profile-vote-btn"
               >
                 <Vote size={20} />
-                {isPaused ? "Voting Paused" : `Vote for ${candidateDisplayName}`}
+                {isVotingClosed
+                  ? "VOTING CLOSED"
+                  : isPaused
+                  ? "Voting Paused"
+                  : `Vote for ${candidateDisplayName}`}
               </button>
+
+              {/* WhatsApp & Social Rally Sharing */}
+              <CandidateShareButtons
+                candidateId={candidate.id}
+                candidateName={candidateDisplayName}
+                isCouple={isCouple}
+              />
             </div>
 
             {/* Right — Bio */}

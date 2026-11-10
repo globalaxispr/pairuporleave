@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Helmet } from "react-helmet-async";
 import { AdminSidebar } from "./AdminSidebar";
 
 export function AdminLayout({ children }: { children: ReactNode }) {
@@ -10,6 +11,10 @@ export function AdminLayout({ children }: { children: ReactNode }) {
         background: "#FFF8FA",
       }}
     >
+      <Helmet>
+        <meta name="robots" content="noindex, nofollow" />
+      </Helmet>
+
       {/* Sidebar */}
       <div className="admin-sidebar-wrap" style={{ position: "sticky", top: 0, height: "100vh", flexShrink: 0 }}>
         <AdminSidebar />

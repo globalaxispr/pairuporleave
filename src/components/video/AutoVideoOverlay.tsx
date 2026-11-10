@@ -35,10 +35,9 @@ export function AutoVideoOverlay() {
   const [isPreviewMode, setIsPreviewMode] = useState(false);
 
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
-  const playerRef = useRef<any>(null);
+  const modalCardRef = useRef<HTMLDivElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const previouslyFocusedElementRef = useRef<HTMLElement | null>(null);
-  const isApiLoadedRef = useRef(false);
 
   // Send command to YouTube iframe via postMessage (reliable & works without external script loading)
   const sendIframeCommand = useCallback((command: string, args: any[] = []) => {
@@ -74,16 +73,6 @@ export function AutoVideoOverlay() {
     setIsDismissed(true);
     setIsPreviewMode(false);
 
-    // Destroy YT player instance if bound
-    if (playerRef.current && typeof playerRef.current.destroy === "function") {
-      try {
-        playerRef.current.destroy();
-      } catch {
-        // silent
-      }
-      playerRef.current = null;
-    }
-
     // Restore body scroll
     document.body.style.overflow = "";
 
@@ -96,29 +85,14 @@ export function AutoVideoOverlay() {
   // Sound toggle handler (Unmute / Mute)
   const handleToggleSound = useCallback(() => {
     if (isMuted) {
-      // Unmute: direct user gesture allows sound immediately
+      // Unmute: direct user gesture allows sound immediately via postMessage
       sendIframeCommand("unMute");
       sendIframeCommand("setVolume", [100]);
-      if (playerRef.current && typeof playerRef.current.unMute === "function") {
-        try {
-          playerRef.current.unMute();
-          playerRef.current.setVolume(100);
-        } catch {
-          // silent
-        }
-      }
       setIsMuted(false);
       setSoundHintVisible(false);
     } else {
       // Mute
       sendIframeCommand("mute");
-      if (playerRef.current && typeof playerRef.current.mute === "function") {
-        try {
-          playerRef.current.mute();
-        } catch {
-          // silent
-        }
-      }
       setIsMuted(true);
     }
   }, [isMuted, sendIframeCommand]);
@@ -237,7 +211,7 @@ export function AutoVideoOverlay() {
     };
   }, []);
 
-  // Keyboard accessibility: Escape key to close
+  // Keyboard accessibility: Escape key to close + Tab focus trap
   useEffect(() => {
     if (!isOpen) return;
 
@@ -245,6 +219,22 @@ export function AutoVideoOverlay() {
       if (e.key === "Escape") {
         e.preventDefault();
         handleClose();
+        return;
+      }
+      if (e.key === "Tab" && modalCardRef.current) {
+        const focusable = modalCardRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
       }
     };
 
@@ -252,24 +242,17 @@ export function AutoVideoOverlay() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, handleClose]);
 
-  // Load YouTube IFrame Player API script only when overlay opens (lazy & performant)
+  // Focus close button when overlay opens (no external script injection needed; postMessage is CSP-safe)
   useEffect(() => {
     if (!isOpen) return;
 
-    // Focus close button on open
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       if (closeButtonRef.current) {
         closeButtonRef.current.focus();
       }
     }, 150);
 
-    // If script not yet added, load it dynamically
-    if (typeof window !== "undefined" && !window.YT && !isApiLoadedRef.current) {
-      isApiLoadedRef.current = true;
-      const tag = document.createElement("script");
-      tag.src = "https://www.youtube.com/iframe_api";
-      document.head.appendChild(tag);
-    }
+    return () => clearTimeout(timer);
   }, [isOpen]);
 
   // Auto-hide sound reminder after 9 seconds if untouched
@@ -333,6 +316,7 @@ export function AutoVideoOverlay() {
     >
       {/* Modal Dialog Card */}
       <div
+        ref={modalCardRef}
         className="overlay-modal-animate"
         style={{
           position: "relative",
@@ -471,8 +455,8 @@ export function AutoVideoOverlay() {
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
-                width: 36,
-                height: 36,
+                width: 44,
+                height: 44,
                 borderRadius: 10,
                 background: "rgba(255, 255, 255, 0.1)",
                 border: "1px solid rgba(255, 255, 255, 0.18)",

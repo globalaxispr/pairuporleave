@@ -9,7 +9,7 @@ export function VoteCancelPage() {
     <>
       <Helmet>
         <title>Payment Cancelled — Pair Up or Leave</title>
-        <meta name="robots" content="noindex, follow" />
+        <meta name="robots" content="noindex, nofollow" />
       </Helmet>
 
       <main
@@ -69,15 +69,14 @@ export function VoteCancelPage() {
               <RotateCcw size={16} />
               Try Again
             </button>
-            <Link to="/candidates">
-              <button
-                className="btn-outline"
-                style={{ width: "100%", justifyContent: "center" }}
-                aria-label="Return to candidates"
-              >
-                <ArrowLeft size={16} />
-                Return to Candidates
-              </button>
+            <Link
+              to="/candidates"
+              className="btn-outline"
+              style={{ width: "100%", justifyContent: "center", textDecoration: "none" }}
+              aria-label="Return to candidates"
+            >
+              <ArrowLeft size={16} />
+              Return to Candidates
             </Link>
           </div>
         </div>

@@ -3,7 +3,7 @@ import { useSearchParams, Link } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { CheckCircle, Vote, Loader2, AlertCircle } from "lucide-react";
 import { formatNumber, formatCurrency } from "@/lib/utils";
-import { supabaseUrl, supabaseAnonKey } from "@/lib/supabase";
+import { supabaseUrl, supabaseAnonKey, invalidateCandidatesCache } from "@/lib/supabase";
 
 interface PaymentDetails {
   status: string;
@@ -32,6 +32,7 @@ export function VoteSuccessPage() {
     }
 
     async function verify() {
+      invalidateCandidatesCache();
       try {
         const resp = await fetch(
           `${supabaseUrl}/functions/v1/verify-payment?session_id=${encodeURIComponent(sessionId!)}`,
@@ -46,6 +47,7 @@ export function VoteSuccessPage() {
         if (!resp.ok || data.error) {
           throw new Error(data.error || data.message || "Could not verify payment.");
         }
+        invalidateCandidatesCache();
         setDetails(data);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Payment verification failed.");
@@ -90,8 +92,8 @@ export function VoteSuccessPage() {
               </div>
               <h1 style={{ fontSize: "1.5rem", fontWeight: 800, color: "#24131A", margin: 0 }}>Verification Failed</h1>
               <p style={{ color: "#6B6870", fontSize: "0.9375rem", margin: 0 }}>{error}</p>
-              <Link to="/candidates">
-                <button className="btn-primary" style={{ marginTop: "0.5rem" }}>Back to Candidates</button>
+              <Link to="/candidates" className="btn-primary" style={{ marginTop: "0.5rem", textDecoration: "none" }}>
+                Back to Candidates
               </Link>
             </div>
           ) : details && details.status === "paid" ? (
@@ -175,15 +177,19 @@ export function VoteSuccessPage() {
                 </div>
               </div>
 
-              <Link to="/candidates">
-                <button className="btn-primary" style={{ width: "100%", justifyContent: "center", marginBottom: "0.75rem" }}>
-                  Back to Candidates
-                </button>
+              <Link
+                to="/candidates"
+                className="btn-primary"
+                style={{ width: "100%", justifyContent: "center", marginBottom: "0.75rem", textDecoration: "none" }}
+              >
+                Back to Candidates
               </Link>
-              <Link to="/results">
-                <button className="btn-outline" style={{ width: "100%", justifyContent: "center" }}>
-                  View Live Results
-                </button>
+              <Link
+                to="/results"
+                className="btn-outline"
+                style={{ width: "100%", justifyContent: "center", textDecoration: "none" }}
+              >
+                View Live Results
               </Link>
             </>
           ) : (
@@ -193,8 +199,8 @@ export function VoteSuccessPage() {
               </div>
               <h1 style={{ fontSize: "1.5rem", fontWeight: 800, color: "#111827", margin: 0 }}>Payment Pending</h1>
               <p style={{ color: "#6B7280", fontSize: "0.9375rem", margin: 0 }}>Your payment is still being processed. Votes will be added once confirmed.</p>
-              <Link to="/candidates">
-                <button className="btn-primary" style={{ marginTop: "0.5rem" }}>Back to Candidates</button>
+              <Link to="/candidates" className="btn-primary" style={{ marginTop: "0.5rem", textDecoration: "none" }}>
+                Back to Candidates
               </Link>
             </div>
           )}

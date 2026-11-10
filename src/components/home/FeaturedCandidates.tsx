@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, Vote } from "lucide-react";
-import { supabase, fetchCandidatesSafe, type PublicCandidate, pickPublicFields } from "@/lib/supabase";
+import { supabase, fetchCandidatesSafe, type PublicCandidate, applyRealtimeCandidateToCache } from "@/lib/supabase";
 import { CandidateGrid } from "@/components/candidates/CandidateGrid";
 import { LoadingState } from "@/components/ui/LoadingState";
 
@@ -30,13 +30,19 @@ export function FeaturedCandidates() {
         { event: "UPDATE", schema: "public", table: "candidates" },
         (payload) => {
           if (!payload.new) return;
-          const updated = pickPublicFields(payload.new as Record<string, unknown>);
+          const updated = applyRealtimeCandidateToCache(
+            payload.new as Record<string, unknown>,
+            payload.eventType
+          );
+          if (!updated) return;
           setCandidates((prev) =>
-            prev.map((c) =>
-              c.id === updated.id
-                ? { ...c, ...updated }
-                : c
-            )
+            updated.status !== "active"
+              ? prev.filter((c) => c.id !== updated.id)
+              : prev.map((c) =>
+                  c.id === updated.id
+                    ? { ...c, ...updated }
+                    : c
+                )
           );
         }
       )
@@ -84,11 +90,14 @@ export function FeaturedCandidates() {
               Discover the candidates and choose who you want to support.
             </p>
           </div>
-          <Link to="/candidates">
-            <button className="btn-outline" aria-label="View all candidates">
-              View All
-              <ArrowRight size={16} />
-            </button>
+          <Link
+            to="/candidates"
+            className="btn-outline"
+            style={{ textDecoration: "none" }}
+            aria-label="View all candidates"
+          >
+            View All
+            <ArrowRight size={16} />
           </Link>
         </div>
 
@@ -100,12 +109,14 @@ export function FeaturedCandidates() {
 
         {!loading && candidates.length > 0 && (
           <div style={{ textAlign: "center", marginTop: "2.5rem" }}>
-            <Link to="/candidates">
-              <button className="btn-primary" style={{ fontSize: "1rem" }}>
-                <Vote size={17} />
-                View All Candidates & Vote
-                <ArrowRight size={16} />
-              </button>
+            <Link
+              to="/candidates"
+              className="btn-primary"
+              style={{ fontSize: "1rem", textDecoration: "none" }}
+            >
+              <Vote size={17} />
+              View All Candidates & Vote
+              <ArrowRight size={16} />
             </Link>
           </div>
         )}

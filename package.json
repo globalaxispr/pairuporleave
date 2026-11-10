@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && node scripts/generate-candidate-og.mjs",
     "lint": "oxlint",
     "preview": "vite preview",
     "seed:admin": "node scripts/seed-test-admin.mjs",

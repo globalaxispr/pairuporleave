@@ -590,6 +590,7 @@ function saveDemoCandidates(list: PublicCandidate[]): void {
     // Persist only the public shape to localStorage
     const safe = list.map(pickPublicFields);
     localStorage.setItem("vote_demo_candidates", JSON.stringify(safe));
+    invalidateCandidatesCache();
   } catch {
     // ignore
   }
@@ -616,39 +617,79 @@ function saveDemoLedger(ledger: ScoreLedgerEntry[]): void {
   }
 }
 
+const PUBLIC_CACHE_TTL_MS = 5000;
+let candidatesMemCache: { data: PublicCandidate[]; timestamp: number } | null = null;
+let candidatesInFlight: Promise<PublicCandidate[]> | null = null;
+let candidatesCacheGeneration = 0;
+
+export function invalidateCandidatesCache(): void {
+  candidatesCacheGeneration += 1;
+  candidatesMemCache = null;
+  candidatesInFlight = null;
+}
+
 /**
- * Public-safe candidate fetch.
- * Selects ONLY the public columns — never paid_votes, bonus_votes,
- * penalty_points, or any other internal/admin field.
- * Returns PublicCandidate[] so callers cannot accidentally expose
- * internal data through TypeScript.
+ * Synchronizes or invalidates the short-TTL public candidates memory cache when
+ * a Supabase Realtime postgres_changes event arrives on `public.candidates`.
+ * - If the candidate is active and currently in the cache, updates its public fields
+ *   and re-sorts rankings by `current_score` descending.
+ * - If the candidate was paused, newly inserted, or deleted, invalidates the cache
+ *   so the next route transition fetches fresh data from Supabase.
  */
-export async function fetchCandidatesSafe(limit?: number): Promise<PublicCandidate[]> {
+export function applyRealtimeCandidateToCache(raw?: Record<string, unknown> | null, eventType?: string): PublicCandidate | null {
+  if (!raw || eventType === "DELETE") {
+    invalidateCandidatesCache();
+    return null;
+  }
+
+  const updated = pickPublicFields(raw);
+  if (updated.status !== "active") {
+    invalidateCandidatesCache();
+    return updated;
+  }
+
+  if (candidatesMemCache) {
+    const exists = candidatesMemCache.data.some((c) => c.id === updated.id);
+    if (!exists) {
+      invalidateCandidatesCache();
+    } else {
+      const nextList = candidatesMemCache.data
+        .map((c) => (c.id === updated.id ? { ...c, ...updated } : c))
+        .sort((a, b) => getCandidateScore(b) - getCandidateScore(a));
+      candidatesMemCache = {
+        data: nextList,
+        timestamp: Date.now(),
+      };
+    }
+  } else {
+    // Ensure any stale in-flight request started prior to this realtime event cannot overwrite
+    candidatesCacheGeneration += 1;
+    candidatesInFlight = null;
+  }
+
+  return updated;
+}
+
+async function fetchAllPublicCandidatesInternal(): Promise<PublicCandidate[]> {
   if (IS_SUPABASE_READY) {
     try {
       // 1. Primary: query public_candidates view (protected at the database level)
-      let viewQuery = supabase
+      const viewRes = await supabase
         .from("public_candidates")
         .select(PUBLIC_CANDIDATE_COLUMNS)
         .order("current_score", { ascending: false });
 
-      if (limit) viewQuery = viewQuery.limit(limit);
-
-      const viewRes = await viewQuery;
       if (!viewRes.error && viewRes.data && viewRes.data.length > 0) {
         return (viewRes.data as unknown as Record<string, unknown>[]).map(pickPublicFields);
       }
 
       // 2. Rollout fallback: query base candidates table if view does not exist yet (pre-migration)
-      let query = supabase
+      const { data, error } = await supabase
         .from("candidates")
         .select(PUBLIC_CANDIDATE_COLUMNS)
         .eq("status", "active")
         .order("current_score", { ascending: false });
 
-      if (limit) query = query.limit(limit);
-
-      const { data, error } = await query;
       if (!error && data) {
         return (data as unknown as Record<string, unknown>[]).map(pickPublicFields);
       }
@@ -664,13 +705,47 @@ export async function fetchCandidatesSafe(limit?: number): Promise<PublicCandida
 
   // Development fallback for offline/preview testing
   if (import.meta.env.DEV) {
-    const list = getDemoCandidates().sort(
+    return getDemoCandidates().sort(
       (a, b) => getCandidateScore(b) - getCandidateScore(a)
     );
-    return limit ? list.slice(0, limit) : list;
   }
 
   return [];
+}
+
+/**
+ * Public-safe candidate fetch with in-flight request deduplication and short-TTL memory cache.
+ * Selects ONLY the public columns — never paid_votes, bonus_votes,
+ * penalty_points, or any other internal/admin field.
+ * Returns PublicCandidate[] so callers cannot accidentally expose
+ * internal data through TypeScript.
+ */
+export async function fetchCandidatesSafe(limit?: number): Promise<PublicCandidate[]> {
+  const now = Date.now();
+  if (candidatesMemCache && now - candidatesMemCache.timestamp < PUBLIC_CACHE_TTL_MS) {
+    return limit ? candidatesMemCache.data.slice(0, limit) : [...candidatesMemCache.data];
+  }
+
+  if (!candidatesInFlight) {
+    const reqGen = candidatesCacheGeneration;
+    candidatesInFlight = fetchAllPublicCandidatesInternal()
+      .then((list) => {
+        if (reqGen === candidatesCacheGeneration) {
+          candidatesMemCache = { data: list, timestamp: Date.now() };
+          candidatesInFlight = null;
+        }
+        return list;
+      })
+      .catch(() => {
+        if (reqGen === candidatesCacheGeneration) {
+          candidatesInFlight = null;
+        }
+        return [];
+      });
+  }
+
+  const list = await candidatesInFlight;
+  return limit ? list.slice(0, limit) : [...list];
 }
 
 /**
@@ -905,6 +980,7 @@ export async function adjustCandidateScore({
 
           if (response.ok) {
             const json = await response.json();
+            invalidateCandidatesCache();
             return {
               success: true,
               ledgerId: json.data?.ledger_id,
@@ -938,6 +1014,7 @@ export async function adjustCandidateScore({
       });
 
       if (!rpcErr && rpcData && (rpcData as any).success) {
+        invalidateCandidatesCache();
         return {
           success: true,
           ledgerId: (rpcData as any).ledger_id,
@@ -956,65 +1033,11 @@ export async function adjustCandidateScore({
         }
       }
 
-      // Attempt C: Direct authenticated table transaction (fallback when RPC is ungranted/pending migration)
-      if (cand) {
-        const prevScore = getCandidateScore(cand);
-        let delta = quantity;
-        if (targetType === "ADMIN_REMOVE") delta = -Math.abs(quantity);
-        else if (targetType === "ADMIN_ADD" || targetType === "PAID_VOTE") delta = Math.abs(quantity);
-        const rawScore = prevScore + delta;
-        const newScore = Math.max(0, rawScore);
-        const cappedAtZero = rawScore < 0;
-
-        const updatePayload: Record<string, any> = {
-          current_score: newScore,
-          total_votes: newScore,
-          updated_at: new Date().toISOString(),
-        };
-        if (targetType === "ADMIN_ADD") {
-          updatePayload.bonus_votes = (cand.bonus_votes ?? 0) + Math.abs(quantity);
-        } else if (targetType === "ADMIN_REMOVE") {
-          updatePayload.penalty_points = (cand.penalty_points ?? 0) + Math.abs(quantity);
-        }
-
-        const { error: updateErr } = await supabase
-          .from("candidates")
-          .update(updatePayload)
-          .eq("id", candidateId);
-
-        if (!updateErr) {
-          let ledgerId: string | undefined;
-          const { data: ledgerRes } = await supabase
-            .from("score_ledger")
-            .insert({
-              candidate_id: candidateId,
-              type: targetType,
-              quantity: delta,
-              previous_score: prevScore,
-              new_score: newScore,
-              reason: cleanReason || "",
-              admin_user_id: callerId ?? null,
-              admin_email: callerEmail ?? null,
-              reference_id: referenceId ?? null,
-            })
-            .select("id")
-            .maybeSingle();
-
-          ledgerId = ledgerRes?.id;
-
-          return {
-            success: true,
-            ledgerId,
-            previousScore: prevScore,
-            newScore,
-            cappedAtZero,
-          };
-        }
-      }
-
+      // Security Lockdown: Direct table manipulation bypasses atomic RPC and ledger integrity.
+      // Adjustments must flow exclusively through the authorized RPC or Edge Function.
       return {
         success: false,
-        error: "Unable to update candidate score. Please verify your administrative permissions.",
+        error: rpcErr?.message || "Unable to update candidate score. Please verify your administrative permissions.",
       };
     } catch (dbErr) {
       return {
@@ -1144,7 +1167,11 @@ function getCachedLiveShowSettings(): LiveShowSettings {
   return DEFAULT_LIVE_SHOW_SETTINGS;
 }
 
+let liveShowMemCache: { data: LiveShowSettings; timestamp: number } | null = null;
+let liveShowInFlight: Promise<LiveShowSettings> | null = null;
+
 function saveCachedLiveShowSettings(settings: LiveShowSettings) {
+  liveShowMemCache = { data: settings, timestamp: Date.now() };
   if (typeof window === "undefined") return;
   try {
     localStorage.setItem(LIVE_SHOW_STORAGE_KEY, JSON.stringify(settings));
@@ -1154,53 +1181,70 @@ function saveCachedLiveShowSettings(settings: LiveShowSettings) {
 }
 
 /**
- * Fetches the active YouTube Live Show settings.
+ * Fetches the active YouTube Live Show settings with in-flight deduplication.
  * Resilient: gracefully falls back to localStorage/default if Supabase is offline or table is unmigrated.
  */
 export async function fetchLiveShowSettings(): Promise<LiveShowSettings> {
-  const cached = getCachedLiveShowSettings();
-
-  if (!IS_SUPABASE_READY) {
-    return cached;
+  const now = Date.now();
+  if (liveShowMemCache && now - liveShowMemCache.timestamp < PUBLIC_CACHE_TTL_MS) {
+    return liveShowMemCache.data;
   }
 
-  try {
-    const { data, error } = await supabase
-      .from("live_show_settings")
-      .select("*")
-      .eq("id", "primary")
-      .maybeSingle();
+  if (liveShowInFlight) {
+    return liveShowInFlight;
+  }
 
-    if (error) {
-      // If table doesn't exist yet (PGRST116/42P01), return cached fallback gracefully without breaking
-      console.warn("[LiveShow] Could not fetch settings from Supabase, using local fallback:", error.message);
+  liveShowInFlight = (async () => {
+    const cached = getCachedLiveShowSettings();
+
+    if (!IS_SUPABASE_READY) {
+      liveShowInFlight = null;
       return cached;
     }
 
-    if (data) {
-      const settings: LiveShowSettings = {
-        id: data.id,
-        is_enabled: data.is_enabled ?? true,
-        status: (data.status as LiveShowStatus) ?? "offline",
-        video_id: data.video_id ?? null,
-        video_url: data.video_url ?? null,
-        title: data.title || DEFAULT_LIVE_SHOW_SETTINGS.title,
-        description: data.description ?? DEFAULT_LIVE_SHOW_SETTINGS.description,
-        scheduled_start_time: data.scheduled_start_time ?? null,
-        channel_url: data.channel_url || DEFAULT_LIVE_SHOW_SETTINGS.channel_url,
-        auto_open_overlay: data.auto_open_overlay ?? DEFAULT_LIVE_SHOW_SETTINGS.auto_open_overlay,
-        created_at: data.created_at,
-        updated_at: data.updated_at,
-        updated_by: data.updated_by,
-      };
-      saveCachedLiveShowSettings(settings);
-      return settings;
-    }
-  } catch (err: any) {
-    console.warn("[LiveShow] Unexpected error fetching live show settings:", err?.message);
-  }
+    try {
+      const { data, error } = await supabase
+        .from("live_show_settings")
+        .select("*")
+        .eq("id", "primary")
+        .maybeSingle();
 
-  return cached;
+      if (error) {
+        // If table doesn't exist yet (PGRST116/42P01), return cached fallback gracefully without breaking
+        console.warn("[LiveShow] Could not fetch settings from Supabase, using local fallback:", error.message);
+        liveShowInFlight = null;
+        return cached;
+      }
+
+      if (data) {
+        const settings: LiveShowSettings = {
+          id: data.id,
+          is_enabled: data.is_enabled ?? true,
+          status: (data.status as LiveShowStatus) ?? "offline",
+          video_id: data.video_id ?? null,
+          video_url: data.video_url ?? null,
+          title: data.title || DEFAULT_LIVE_SHOW_SETTINGS.title,
+          description: data.description ?? DEFAULT_LIVE_SHOW_SETTINGS.description,
+          scheduled_start_time: data.scheduled_start_time ?? null,
+          channel_url: data.channel_url || DEFAULT_LIVE_SHOW_SETTINGS.channel_url,
+          auto_open_overlay: data.auto_open_overlay ?? DEFAULT_LIVE_SHOW_SETTINGS.auto_open_overlay,
+          created_at: data.created_at,
+          updated_at: data.updated_at,
+          updated_by: data.updated_by,
+        };
+        saveCachedLiveShowSettings(settings);
+        liveShowInFlight = null;
+        return settings;
+      }
+    } catch (err: any) {
+      console.warn("[LiveShow] Unexpected error fetching live show settings:", err?.message);
+    }
+
+    liveShowInFlight = null;
+    return cached;
+  })();
+
+  return liveShowInFlight;
 }
 
 /**
@@ -1326,7 +1370,11 @@ function getCachedCompetitionSchedule(): CompetitionSchedule {
   return DEFAULT_COMPETITION_SCHEDULE;
 }
 
+let scheduleMemCache: { data: CompetitionSchedule; timestamp: number } | null = null;
+let scheduleInFlight: Promise<CompetitionSchedule> | null = null;
+
 function saveCachedCompetitionSchedule(schedule: CompetitionSchedule) {
+  scheduleMemCache = { data: schedule, timestamp: Date.now() };
   if (typeof window === "undefined") return;
   try {
     localStorage.setItem(COMPETITION_SCHEDULE_STORAGE_KEY, JSON.stringify(schedule));
@@ -1336,43 +1384,63 @@ function saveCachedCompetitionSchedule(schedule: CompetitionSchedule) {
 }
 
 export async function fetchCompetitionSchedule(): Promise<CompetitionSchedule> {
-  const cached = getCachedCompetitionSchedule();
-  if (!IS_SUPABASE_READY) return cached;
+  const now = Date.now();
+  if (scheduleMemCache && now - scheduleMemCache.timestamp < PUBLIC_CACHE_TTL_MS) {
+    return scheduleMemCache.data;
+  }
 
-  try {
-    const { data, error } = await supabase
-      .from("competition_schedule")
-      .select("*")
-      .eq("id", "active")
-      .maybeSingle();
+  if (scheduleInFlight) {
+    return scheduleInFlight;
+  }
 
-    if (error) {
-      console.warn("[Competition] Could not fetch schedule from Supabase, using local fallback:", error.message);
+  scheduleInFlight = (async () => {
+    const cached = getCachedCompetitionSchedule();
+    if (!IS_SUPABASE_READY) {
+      scheduleInFlight = null;
       return cached;
     }
 
-    if (data) {
-      const schedule: CompetitionSchedule = {
-        id: data.id,
-        name: data.name || DEFAULT_COMPETITION_SCHEDULE.name,
-        is_enabled: data.is_enabled ?? true,
-        start_time: data.start_time || DEFAULT_COMPETITION_SCHEDULE.start_time,
-        end_time: data.end_time || DEFAULT_COMPETITION_SCHEDULE.end_time,
-        timezone: data.timezone || DEFAULT_COMPETITION_SCHEDULE.timezone,
-        title: data.title || DEFAULT_COMPETITION_SCHEDULE.title,
-        description: data.description ?? DEFAULT_COMPETITION_SCHEDULE.description,
-        created_at: data.created_at,
-        updated_at: data.updated_at,
-        updated_by: data.updated_by,
-      };
-      saveCachedCompetitionSchedule(schedule);
-      return schedule;
-    }
-  } catch (err: any) {
-    console.warn("[Competition] Unexpected error fetching schedule:", err?.message);
-  }
+    try {
+      const { data, error } = await supabase
+        .from("competition_schedule")
+        .select("*")
+        .eq("id", "active")
+        .maybeSingle();
 
-  return cached;
+      if (error) {
+        console.warn("[Competition] Could not fetch schedule from Supabase, using local fallback:", error.message);
+        scheduleInFlight = null;
+        return cached;
+      }
+
+      if (data) {
+        const row = data as Record<string, unknown>;
+        const schedule: CompetitionSchedule = {
+          id: (row.id as string) || "active",
+          name: (row.competition_name as string) || (row.name as string) || DEFAULT_COMPETITION_SCHEDULE.name,
+          is_enabled: row.is_published !== undefined ? Boolean(row.is_published) : (row.is_enabled !== undefined ? Boolean(row.is_enabled) : true),
+          start_time: (row.start_time as string) || DEFAULT_COMPETITION_SCHEDULE.start_time,
+          end_time: (row.end_time as string) || DEFAULT_COMPETITION_SCHEDULE.end_time,
+          timezone: (row.timezone as string) || DEFAULT_COMPETITION_SCHEDULE.timezone,
+          title: (row.title as string) || DEFAULT_COMPETITION_SCHEDULE.title,
+          description: (row.description as string | null) ?? DEFAULT_COMPETITION_SCHEDULE.description,
+          created_at: row.created_at as string | undefined,
+          updated_at: row.updated_at as string | undefined,
+          updated_by: row.updated_by as string | undefined | null,
+        };
+        saveCachedCompetitionSchedule(schedule);
+        scheduleInFlight = null;
+        return schedule;
+      }
+    } catch (err: any) {
+      console.warn("[Competition] Unexpected error fetching schedule:", err?.message);
+    }
+
+    scheduleInFlight = null;
+    return cached;
+  })();
+
+  return scheduleInFlight;
 }
 
 export async function updateCompetitionSchedule(
@@ -1386,47 +1454,63 @@ export async function updateCompetitionSchedule(
     updated_at: new Date().toISOString(),
   };
 
-  saveCachedCompetitionSchedule(updated);
-
   if (!IS_SUPABASE_READY) {
+    saveCachedCompetitionSchedule(updated);
     return { success: true, data: updated };
   }
 
   try {
+    // Write using the authoritative PostgreSQL schema columns:
+    // competition_name, is_published, start_time, end_time, timezone, updated_at
+    const dbPayload: Record<string, unknown> = {
+      id: "active",
+      competition_name: updated.name,
+      is_published: updated.is_enabled,
+      start_time: updated.start_time,
+      end_time: updated.end_time,
+      timezone: updated.timezone || "America/New_York",
+      updated_at: updated.updated_at,
+    };
+
     const { data, error } = await supabase
       .from("competition_schedule")
-      .upsert({
-        id: "active",
-        name: updated.name,
-        is_enabled: updated.is_enabled,
-        start_time: updated.start_time,
-        end_time: updated.end_time,
-        timezone: updated.timezone,
-        title: updated.title,
-        description: updated.description,
-        updated_at: updated.updated_at,
-      })
+      .upsert(dbPayload)
       .select()
       .maybeSingle();
 
     if (error) {
-      console.warn("[Competition] Supabase upsert error, saved locally:", error.message);
+      console.error("[Competition] Supabase upsert error:", error.message);
       return {
-        success: true,
-        data: updated,
-        error: `Saved locally, but database returned: ${error.message}. Please verify migration 12 is executed in Supabase.`,
+        success: false,
+        data: current,
+        error: `Database save failed: ${error.message}. Changes were NOT saved.`,
       };
     }
 
+    const row = (data || {}) as Record<string, unknown>;
+    const saved: CompetitionSchedule = {
+      ...updated,
+      id: (row.id as string) || "active",
+      name: (row.competition_name as string) || (row.name as string) || updated.name,
+      is_enabled: row.is_published !== undefined ? Boolean(row.is_published) : (row.is_enabled !== undefined ? Boolean(row.is_enabled) : updated.is_enabled),
+      start_time: (row.start_time as string) || updated.start_time,
+      end_time: (row.end_time as string) || updated.end_time,
+      timezone: (row.timezone as string) || updated.timezone,
+      updated_at: (row.updated_at as string) || updated.updated_at,
+    };
+
+    saveCachedCompetitionSchedule(saved);
+
     return {
       success: true,
-      data: (data as CompetitionSchedule) || updated,
+      data: saved,
     };
   } catch (err: any) {
+    console.error("[Competition] Unexpected error saving schedule:", err?.message);
     return {
-      success: true,
-      data: updated,
-      error: `Saved locally: ${err?.message || "Unknown network error"}`,
+      success: false,
+      data: current,
+      error: `Network error saving to database: ${err?.message || "Unknown error"}`,
     };
   }
 }

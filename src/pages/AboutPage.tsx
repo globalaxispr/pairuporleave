@@ -14,12 +14,17 @@ export function AboutPage() {
           name="description"
           content="Pair Up or Leave brings people together through competition, connection, and the excitement of choosing your favorite candidate or couple."
         />
-        <meta property="og:title" content="About Pair Up or Leave" />
+        <meta property="og:title" content="About Pair Up or Leave — More Than a Vote. It's a Moment." />
         <meta
           property="og:description"
           content="More Than a Vote. It's a Moment. Discover the story, community, and values behind Pair Up or Leave."
         />
         <meta property="og:url" content={`${SITE_URL}/about`} />
+        <meta property="og:image" content={`${SITE_URL}/og-image.jpg`} />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="About Pair Up or Leave — More Than a Vote. It's a Moment." />
+        <meta name="twitter:description" content="Discover the story, community, and live voting experience behind Pair Up or Leave." />
+        <meta name="twitter:image" content={`${SITE_URL}/og-image.jpg`} />
         <link rel="canonical" href={`${SITE_URL}/about`} />
       </Helmet>
 
@@ -111,17 +116,21 @@ export function AboutPage() {
                   className="reveal-fade-up stagger-2"
                   style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}
                 >
-                  <Link to="/candidates">
-                    <button className="btn-vote" style={{ minHeight: 48, padding: "0.75rem 1.75rem" }}>
-                      <Vote size={18} />
-                      EXPLORE CANDIDATES
-                    </button>
+                  <Link
+                    to="/candidates"
+                    className="btn-vote"
+                    style={{ minHeight: 48, padding: "0.75rem 1.75rem", textDecoration: "none" }}
+                  >
+                    <Vote size={18} />
+                    EXPLORE CANDIDATES
                   </Link>
-                  <Link to="/ranking">
-                    <button className="btn-outline" style={{ minHeight: 48, padding: "0.75rem 1.75rem" }}>
-                      <Trophy size={18} />
-                      VIEW LIVE RANKING
-                    </button>
+                  <Link
+                    to="/ranking"
+                    className="btn-outline"
+                    style={{ minHeight: 48, padding: "0.75rem 1.75rem", textDecoration: "none" }}
+                  >
+                    <Trophy size={18} />
+                    VIEW LIVE RANKING
                   </Link>
                 </div>
               </div>
@@ -541,42 +550,41 @@ export function AboutPage() {
                 flexWrap: "wrap",
               }}
             >
-              <Link to="/candidates">
-                <button
-                  className="btn-vote"
-                  style={{ minHeight: 48, padding: "0.75rem 2rem", fontSize: "1rem" }}
-                >
-                  <Vote size={18} />
-                  EXPLORE CANDIDATES
-                </button>
+              <Link
+                to="/candidates"
+                className="btn-vote"
+                style={{ minHeight: 48, padding: "0.75rem 2rem", fontSize: "1rem", textDecoration: "none" }}
+              >
+                <Vote size={18} />
+                EXPLORE CANDIDATES
               </Link>
-              <Link to="/ranking">
-                <button
-                  style={{
-                    background: "rgba(255,255,255,0.1)",
-                    border: "2px solid rgba(255,255,255,0.3)",
-                    borderRadius: 12,
-                    padding: "0.75rem 2rem",
-                    fontSize: "1rem",
-                    color: "#ffffff",
-                    fontWeight: 700,
-                    cursor: "pointer",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "0.5rem",
-                    minHeight: 48,
-                    transition: "all 0.2s ease",
-                  }}
-                  onMouseEnter={(e) => {
-                    (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.2)";
-                  }}
-                  onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.1)";
-                  }}
-                >
-                  VIEW LIVE RANKING
-                  <ArrowRight size={16} />
-                </button>
+              <Link
+                to="/ranking"
+                style={{
+                  background: "rgba(255,255,255,0.1)",
+                  border: "2px solid rgba(255,255,255,0.3)",
+                  borderRadius: 12,
+                  padding: "0.75rem 2rem",
+                  fontSize: "1rem",
+                  color: "#ffffff",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  minHeight: 48,
+                  transition: "all 0.2s ease",
+                  textDecoration: "none",
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.2)";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.1)";
+                }}
+              >
+                VIEW LIVE RANKING
+                <ArrowRight size={16} />
               </Link>
             </div>
           </div>

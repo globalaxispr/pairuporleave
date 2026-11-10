@@ -557,7 +557,8 @@ export function createHandlers(params: {
           status: "failed",
           stripe_payment_intent_id: existingPayment.stripe_payment_intent_id ?? incomingPi,
         })
-        .eq("id", existingPayment.id);
+        .eq("id", existingPayment.id)
+        .eq("status", "pending");
     }
   }
 

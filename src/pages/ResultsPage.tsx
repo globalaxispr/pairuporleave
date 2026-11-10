@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { TrendingUp, Vote, Trophy, ArrowRight } from "lucide-react";
-import { supabase, type PublicCandidate, fetchCandidatesSafe, getCandidateScore, pickPublicFields } from "@/lib/supabase";
+import { supabase, type PublicCandidate, fetchCandidatesSafe, getCandidateScore, applyRealtimeCandidateToCache } from "@/lib/supabase";
 import { formatNumber, SITE_URL } from "@/lib/utils";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { VoteModal } from "@/components/voting/VoteModal";
+import { useCompetitionSchedule } from "@/hooks/useCompetitionSchedule";
 
 const rankBadges: Record<number, { bg: string; color: string; border: string; label: string }> = {
   0: { bg: "#7A0C2E", color: "#ffffff", border: "#7A0C2E", label: "#1" },
@@ -19,6 +20,7 @@ export function ResultsPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedCandidate, setSelectedCandidate] = useState<PublicCandidate | null>(null);
   const [animateBars, setAnimateBars] = useState(false);
+  const { isVotingClosed } = useCompetitionSchedule();
 
   async function load() {
     setLoading(true);
@@ -47,11 +49,17 @@ export function ResultsPage() {
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "candidates" },
         (payload) => {
-          const updated = pickPublicFields(payload.new as Record<string, unknown>);
+          const updated = applyRealtimeCandidateToCache(
+            payload.new as Record<string, unknown>,
+            payload.eventType
+          );
+          if (!updated) return;
           setCandidates((prev) =>
-            [...prev.map((c) =>
-              c.id === updated.id ? { ...c, ...updated } : c
-            )].sort((a, b) => getCandidateScore(b) - getCandidateScore(a))
+            updated.status !== "active"
+              ? prev.filter((c) => c.id !== updated.id)
+              : [...prev.map((c) => (c.id === updated.id ? { ...c, ...updated } : c))].sort(
+                  (a, b) => getCandidateScore(b) - getCandidateScore(a)
+                )
           );
         }
       )
@@ -76,14 +84,19 @@ export function ResultsPage() {
   return (
     <>
       <Helmet>
-        <title>Live Voting Results — Pair Up or Leave</title>
+        <title>Full Competition Results & Vote Totals — Pair Up or Leave</title>
         <meta
           name="description"
-          content="Live voting results and rankings for all candidates and couples on Pair Up or Leave. Updated in real time."
+          content="Complete voting results for Pair Up or Leave. View total votes cast, percentage breakdowns, and category standings in real time."
         />
-        <meta property="og:title" content="Live Voting Results — Pair Up or Leave" />
-        <meta property="og:description" content="See the current vote tallies and who is winning the Pair Up or Leave competition. Results updated live." />
+        <meta property="og:title" content="Full Competition Results & Vote Totals — Pair Up or Leave" />
+        <meta property="og:description" content="See the current vote tallies and percentage breakdowns in the Pair Up or Leave competition. Results updated live." />
         <meta property="og:url" content={`${SITE_URL}/results`} />
+        <meta property="og:image" content={`${SITE_URL}/og-image.jpg`} />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Full Competition Results & Vote Totals — Pair Up or Leave" />
+        <meta name="twitter:description" content="Complete voting results, total votes cast, and percentage breakdowns on Pair Up or Leave." />
+        <meta name="twitter:image" content={`${SITE_URL}/og-image.jpg`} />
         <link rel="canonical" href={`${SITE_URL}/results`} />
       </Helmet>
 
@@ -369,19 +382,23 @@ export function ResultsPage() {
                       {/* Vote button on each result card */}
                       <button
                         className="btn-vote"
-                        onClick={() => setSelectedCandidate(c)}
+                        disabled={isVotingClosed}
+                        onClick={() => !isVotingClosed && setSelectedCandidate(c)}
                         style={{
-                          padding: "0.375rem 0.875rem",
+                          padding: "0.5rem 0.95rem",
                           fontSize: "0.8125rem",
                           fontWeight: 800,
-                          minHeight: 36,
+                          minHeight: 44,
                           flexShrink: 0,
-                          borderRadius: 8,
+                          borderRadius: 10,
+                          opacity: isVotingClosed ? 0.5 : 1,
+                          cursor: isVotingClosed ? "not-allowed" : "pointer",
+                          filter: isVotingClosed ? "grayscale(1)" : "none",
                         }}
-                        aria-label={`Vote for ${c.name}`}
+                        aria-label={isVotingClosed ? `Voting is closed for ${c.name}` : `Vote for ${c.name}`}
                       >
-                        <Vote size={13} />
-                        Vote
+                        <Vote size={14} />
+                        {isVotingClosed ? "Closed" : "Vote"}
                       </button>
                     </div>
                   </article>

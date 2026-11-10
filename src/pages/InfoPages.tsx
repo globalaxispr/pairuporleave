@@ -78,6 +78,11 @@ export function ContactPage() {
         <meta property="og:title" content="Contact Us — Pair Up or Leave" />
         <meta property="og:description" content="Get in touch with Pair Up or Leave support. Questions about voting, payments, or the competition answered within 24 hours." />
         <meta property="og:url" content={`${SITE_URL}/contact`} />
+        <meta property="og:image" content={`${SITE_URL}/og-image.jpg`} />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Contact Us — Pair Up or Leave" />
+        <meta name="twitter:description" content="Get in touch with Pair Up or Leave support. Questions about voting, payments, or the competition answered within 24 hours." />
+        <meta name="twitter:image" content={`${SITE_URL}/og-image.jpg`} />
         <link rel="canonical" href={`${SITE_URL}/contact`} />
       </Helmet>
       <main style={pageWrap} id="main-content">
@@ -148,6 +153,11 @@ export function PrivacyPage() {
         <meta property="og:title" content="Privacy Policy — Pair Up or Leave" />
         <meta property="og:description" content="Pair Up or Leave is committed to voter privacy. Read our full Privacy Policy to understand how we handle your data." />
         <meta property="og:url" content={`${SITE_URL}/privacy`} />
+        <meta property="og:image" content={`${SITE_URL}/og-image.jpg`} />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Privacy Policy — Pair Up or Leave" />
+        <meta name="twitter:description" content="Pair Up or Leave is committed to voter privacy. Read our full Privacy Policy to understand how we handle your data." />
+        <meta name="twitter:image" content={`${SITE_URL}/og-image.jpg`} />
         <link rel="canonical" href={`${SITE_URL}/privacy`} />
       </Helmet>
       <main style={pageWrap} id="main-content">
@@ -322,6 +332,11 @@ export function TermsPage() {
         <meta property="og:title" content="Terms of Service — Pair Up or Leave" />
         <meta property="og:description" content="Full Terms of Service for the Pair Up or Leave voting competition platform." />
         <meta property="og:url" content={`${SITE_URL}/terms`} />
+        <meta property="og:image" content={`${SITE_URL}/og-image.jpg`} />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Terms of Service — Pair Up or Leave" />
+        <meta name="twitter:description" content="Full Terms of Service for the Pair Up or Leave voting competition platform." />
+        <meta name="twitter:image" content={`${SITE_URL}/og-image.jpg`} />
         <link rel="canonical" href={`${SITE_URL}/terms`} />
       </Helmet>
       <main style={pageWrap} id="main-content">

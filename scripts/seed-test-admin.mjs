@@ -10,13 +10,17 @@
  * 
  * Optional Overrides:
  *   TEST_ADMIN_EMAIL (default: testadmin@pairuporleave.com)
- *   TEST_ADMIN_PASSWORD (default: TestAdmin2026!Secure)
  *   TEST_ADMIN_ROLE (default: SUPER_ADMIN)
+ *
+ * Required (no default is provided on purpose):
+ *   TEST_ADMIN_PASSWORD  - unique, >= 16 characters, supplied via untracked .env
+ *                          or the shell. Never commit it.
  */
 
 import { createClient } from "@supabase/supabase-js";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { createHash } from "node:crypto";
 
 // 1. Simple .env parser to avoid extra dependencies
 function loadEnv() {
@@ -71,7 +75,21 @@ if (!serviceRoleKey || serviceRoleKey === "your-service-role-key") {
 if (!adminPassword || adminPassword === "your-secure-test-admin-password") {
   console.error("\n❌ ERROR: TEST_ADMIN_PASSWORD is not configured.");
   console.error("Please provide the test password in your untracked .env file or environment variables.");
-  console.error("Example: TEST_ADMIN_PASSWORD=TestAdmin2026!Secure\n");
+  console.error("Generate a unique random password of at least 16 characters (e.g. from a password manager).\n");
+  process.exit(1);
+}
+
+// Reject weak passwords and a previously published default (compared by hash so the value is
+// never stored in source). Test accounts must never use a guessable or public password.
+if (adminPassword.length < 16) {
+  console.error("\n❌ ERROR: TEST_ADMIN_PASSWORD must be at least 16 characters long.\n");
+  process.exit(1);
+}
+if (
+  createHash("sha256").update(adminPassword).digest("hex") ===
+  "3d586b398945378af08849b628ce39dad029bc42625fca9afb6bcc8e73126fbb"
+) {
+  console.error("\n❌ ERROR: TEST_ADMIN_PASSWORD matches a previously published default and is forbidden.\n");
   process.exit(1);
 }
 

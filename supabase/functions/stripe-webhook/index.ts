@@ -115,7 +115,6 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         error: "Webhook processing failed. Retry requested.",
-        message: (err as Error).message,
       }),
       {
         status: 500,

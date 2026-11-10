@@ -21,7 +21,9 @@ Disallow: /admin
 Disallow: /admin/
 
 # Block Stripe callback routes (not useful for indexing)
+Disallow: /vote-success
+Disallow: /vote-cancel
 Disallow: /vote/success
 Disallow: /vote/cancel
 
-Sitemap: https://pairuporleave.com/sitemap.xml
+Sitemap: https://www.pairuporleave.com/sitemap.xml

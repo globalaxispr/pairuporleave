@@ -80,8 +80,8 @@ export function CompetitionCountdownSection() {
             setSchedule((prev) => {
               const next: CompetitionSchedule = {
                 ...prev,
-                name: (updated.name as string) || prev.name,
-                is_enabled: updated.is_enabled !== undefined ? Boolean(updated.is_enabled) : prev.is_enabled,
+                name: (updated.competition_name as string) || (updated.name as string) || prev.name,
+                is_enabled: updated.is_published !== undefined ? Boolean(updated.is_published) : (updated.is_enabled !== undefined ? Boolean(updated.is_enabled) : prev.is_enabled),
                 start_time: (updated.start_time as string) || prev.start_time,
                 end_time: (updated.end_time as string) || prev.end_time,
                 timezone: (updated.timezone as string) || prev.timezone,

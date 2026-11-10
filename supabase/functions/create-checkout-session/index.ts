@@ -65,23 +65,69 @@ export function calculateVotePricingCents(
   };
 }
 
-// Restrict CORS to the configured production domain.
-// Falls back to request origin or permissive wildcard only if not configured (local dev safety).
-const ALLOWED_ORIGIN = Deno.env.get("SITE_URL") ?? "";
+// Restrict CORS and redirect origin to the configured production domain.
+const ALLOWED_ORIGIN = Deno.env.get("SITE_URL") ?? "https://pairuporleave.com";
+
+function getTrustedOrigin(requestOrigin: string | null): string {
+  const defaultOrigin = (ALLOWED_ORIGIN || "https://pairuporleave.com").replace(/\/+$/, "");
+  if (!requestOrigin) return defaultOrigin;
+
+  try {
+    const reqUrl = new URL(requestOrigin);
+    const trustedUrl = new URL(defaultOrigin);
+    const reqHost = reqUrl.hostname.replace(/^www\./, "").toLowerCase();
+    const trustedHost = trustedUrl.hostname.replace(/^www\./, "").toLowerCase();
+
+    // In production, strictly require HTTPS for official production host
+    if (reqHost === trustedHost && reqUrl.protocol === "https:") {
+      return `https://${reqUrl.host}`;
+    }
+
+    // Allow localhost (HTTP/HTTPS) only in non-production development environments
+    if ((reqHost === "localhost" || reqHost === "127.0.0.1") && Deno.env.get("ENVIRONMENT") !== "production") {
+      return `${reqUrl.protocol}//${reqUrl.host}`;
+    }
+  } catch {
+    // Ignore URL parse error and fall back to trusted default
+  }
+
+  return defaultOrigin;
+}
+
+function isOriginAuthorized(requestOrigin: string | null): boolean {
+  // Browser checkout requires an explicit, verified Origin header.
+  // Missing or empty Origin headers are rejected in browser-facing endpoints to prevent spoofed/unverified requests.
+  if (!requestOrigin || typeof requestOrigin !== "string" || requestOrigin.trim() === "") {
+    return false;
+  }
+
+  try {
+    const reqUrl = new URL(requestOrigin);
+    const trustedUrl = new URL(ALLOWED_ORIGIN || "https://pairuporleave.com");
+    const reqHost = reqUrl.hostname.replace(/^www\./, "").toLowerCase();
+    const trustedHost = trustedUrl.hostname.replace(/^www\./, "").toLowerCase();
+
+    // Authorize official production host strictly via HTTPS (pairuporleave.com, www.pairuporleave.com)
+    // Plain HTTP is strictly rejected in production to guarantee data transit integrity.
+    if (reqHost === trustedHost && reqUrl.protocol === "https:") {
+      return true;
+    }
+
+    // Authorize local development only in non-production environments
+    if ((reqHost === "localhost" || reqHost === "127.0.0.1") && Deno.env.get("ENVIRONMENT") !== "production") {
+      return true;
+    }
+  } catch {
+    return false;
+  }
+
+  // Reject all unapproved origins (including Vercel Previews *.vercel.app, HTTP, or forged headers)
+  return false;
+}
 
 function getCorsHeaders(requestOrigin: string | null): HeadersInit {
-  let allowedOrigin = ALLOWED_ORIGIN || requestOrigin || "*";
-  if (requestOrigin && ALLOWED_ORIGIN) {
-    try {
-      const originHost = new URL(requestOrigin).hostname.replace(/^www\./, "");
-      const allowedHost = new URL(ALLOWED_ORIGIN).hostname.replace(/^www\./, "");
-      if (originHost === allowedHost) {
-        allowedOrigin = requestOrigin;
-      }
-    } catch {
-      // Fall back to configured ALLOWED_ORIGIN
-    }
-  }
+  const isAuth = isOriginAuthorized(requestOrigin);
+  const allowedOrigin = isAuth && requestOrigin ? requestOrigin : (ALLOWED_ORIGIN || "https://pairuporleave.com");
   return {
     "Access-Control-Allow-Origin": allowedOrigin,
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -130,6 +176,17 @@ function isRateLimited(ip: string): boolean {
 Deno.serve(async (req) => {
   const requestOrigin = req.headers.get("origin");
   const corsHeaders = getCorsHeaders(requestOrigin);
+
+  // Enforce strict server-side origin boundary: Vercel previews or unauthorized third-party origins
+  // cannot initiate LIVE Stripe payments against production Supabase.
+  if (!isOriginAuthorized(requestOrigin)) {
+    return new Response(
+      JSON.stringify({
+        error: "Forbidden: Checkout requests from this origin are not authorized. Previews cannot trigger LIVE transactions.",
+      }),
+      { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
 
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -309,7 +366,7 @@ Deno.serve(async (req) => {
     }
 
     const candidateDisplayName = candidate.display_name || candidate.name;
-    const origin = requestOrigin ?? (ALLOWED_ORIGIN || "https://pairuporleave.com");
+    const origin = getTrustedOrigin(requestOrigin);
 
     const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [
       {
