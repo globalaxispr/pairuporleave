@@ -59,6 +59,7 @@
     { "source": "/contact", "destination": "/index.html" },
     { "source": "/privacy", "destination": "/index.html" },
     { "source": "/terms", "destination": "/index.html" },
+    { "source": "/voting-policy", "destination": "/index.html" },
     { "source": "/vote/success", "destination": "/index.html" },
     { "source": "/vote/cancel", "destination": "/index.html" },
     { "source": "/vote-success", "destination": "/index.html" },
