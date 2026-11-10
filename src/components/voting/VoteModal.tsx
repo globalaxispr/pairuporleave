@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
+import { Link } from "react-router-dom";
 import { X, Minus, Plus, Vote, Loader2, AlertCircle, Lock, Users, User } from "lucide-react";
 import {
   getVotePriceDollars,
@@ -12,6 +13,7 @@ import {
   supabaseAnonKey,
 } from "@/lib/supabase";
 import { formatNumber, formatCurrency } from "@/lib/utils";
+import { useCompetitionSchedule } from "@/hooks/useCompetitionSchedule";
 
 interface VoteModalProps {
   candidate: PublicCandidate;
@@ -24,6 +26,8 @@ export function VoteModal({ candidate, onClose }: VoteModalProps) {
   const [quantity, setQuantity] = useState(10);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [policyAccepted, setPolicyAccepted] = useState(true);
+  const { isVotingClosed } = useCompetitionSchedule();
 
   const isCouple = candidate.candidate_type === "couple";
   const unitPrice = getVotePriceDollars(candidate.candidate_type);
@@ -85,6 +89,14 @@ export function VoteModal({ candidate, onClose }: VoteModalProps) {
 
   const handleCheckout = useCallback(async () => {
     if (loading) return;
+    if (isVotingClosed) {
+      setError("Voting has closed for this competition round. The deadline has passed.");
+      return;
+    }
+    if (!policyAccepted) {
+      setError("Please accept the Voting Policy before continuing to payment.");
+      return;
+    }
     setLoading(true);
     setError(null);
 
@@ -119,7 +131,7 @@ export function VoteModal({ candidate, onClose }: VoteModalProps) {
       setError(msg);
       setLoading(false);
     }
-  }, [loading, quantity, candidate.id, pricing.totalAmountCents]);
+  }, [loading, isVotingClosed, policyAccepted, quantity, candidate.id, pricing.totalAmountCents]);
 
   return (
     <div
@@ -476,6 +488,28 @@ export function VoteModal({ candidate, onClose }: VoteModalProps) {
           </div>
         </div>
 
+        {/* Voting Closed Notification */}
+        {isVotingClosed && (
+          <div
+            style={{
+              background: "#FFF3F5",
+              border: "1.5px solid #F0DCE2",
+              borderRadius: 14,
+              padding: "0.875rem 1rem",
+              marginBottom: "1rem",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.75rem",
+            }}
+            role="alert"
+          >
+            <AlertCircle size={20} color="#E51B3E" style={{ flexShrink: 0 }} />
+            <div style={{ fontSize: "0.875rem", color: "#7A0C2E", fontWeight: 700 }}>
+              Voting has officially closed for this competition. No new votes can be submitted.
+            </div>
+          </div>
+        )}
+
         {/* Error Notification */}
         {error && (
           <div
@@ -496,10 +530,69 @@ export function VoteModal({ candidate, onClose }: VoteModalProps) {
           </div>
         )}
 
+        {/* Official Voting Policy Notice & Acceptance Checkbox */}
+        <div
+          style={{
+            background: "#FFF8FA",
+            border: "1px solid #F0DCE2",
+            borderRadius: 12,
+            padding: "0.75rem 0.875rem",
+            marginBottom: "1rem",
+          }}
+        >
+          <label
+            htmlFor="voting-policy-agree"
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              gap: "0.625rem",
+              cursor: "pointer",
+              userSelect: "none",
+            }}
+          >
+            <input
+              type="checkbox"
+              id="voting-policy-agree"
+              checked={policyAccepted}
+              onChange={(e) => setPolicyAccepted(e.target.checked)}
+              style={{
+                marginTop: 2,
+                width: 16,
+                height: 16,
+                accentColor: "#E51B3E",
+                cursor: "pointer",
+                flexShrink: 0,
+              }}
+            />
+            <span
+              style={{
+                fontSize: "0.75rem",
+                lineHeight: 1.45,
+                color: "#6B6870",
+              }}
+            >
+              All votes are final once payment is completed and votes are credited. Completed voting purchases are generally non-refundable, except where required by law or applicable payment rules. By continuing, you agree to our{" "}
+              <Link
+                to="/voting-policy"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  color: "#7A0C2E",
+                  fontWeight: 800,
+                  textDecoration: "underline",
+                }}
+              >
+                Voting Policy
+              </Link>
+              .
+            </span>
+          </label>
+        </div>
+
         {/* Pay CTA */}
         <button
           onClick={handleCheckout}
-          disabled={loading || quantity < 1}
+          disabled={loading || quantity < 1 || isVotingClosed || !policyAccepted}
           className="btn-vote"
           style={{
             width: "100%",
@@ -508,15 +601,26 @@ export function VoteModal({ candidate, onClose }: VoteModalProps) {
             fontSize: "1rem",
             fontWeight: 800,
             letterSpacing: "0.02em",
-            cursor: loading ? "not-allowed" : "pointer",
+            opacity: loading || quantity < 1 || isVotingClosed || !policyAccepted ? 0.5 : 1,
+            cursor: loading || quantity < 1 || isVotingClosed || !policyAccepted ? "not-allowed" : "pointer",
+            filter: isVotingClosed ? "grayscale(1)" : "none",
           }}
-          aria-label={`Continue to payment of ${formatCurrency(pricing.totalAmountCents)}`}
+          aria-label={
+            isVotingClosed
+              ? "Voting is closed"
+              : `Continue to payment of ${formatCurrency(pricing.totalAmountCents)}`
+          }
           id="checkout-btn"
         >
           {loading ? (
             <>
               <Loader2 size={20} style={{ animation: "spin 1s linear infinite" }} />
               Connecting to Stripe...
+            </>
+          ) : isVotingClosed ? (
+            <>
+              <Vote size={18} />
+              VOTING CLOSED
             </>
           ) : (
             <>

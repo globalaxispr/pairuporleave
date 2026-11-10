@@ -4,6 +4,8 @@ import { Vote, TrendingUp, User, Eye } from "lucide-react";
 import { getVotePriceDollars, getSingleVoteAllInPriceFormatted, IS_PLATFORM_SERVICE_FEE_ENABLED, type PublicCandidate, getCandidateScore } from "@/lib/supabase";
 import { formatNumber } from "@/lib/utils";
 import { VoteModal } from "@/components/voting/VoteModal";
+import { useCompetitionSchedule } from "@/hooks/useCompetitionSchedule";
+import { CandidateShareButtons } from "@/components/candidates/CandidateShareButtons";
 
 interface CandidateCardProps {
   candidate: PublicCandidate;
@@ -15,6 +17,7 @@ export function CandidateCard({ candidate, rank }: CandidateCardProps) {
   const [imgError, setImgError] = useState(false);
   const [imgErrorTwo, setImgErrorTwo] = useState(false);
   const navigate = useNavigate();
+  const { isVotingClosed } = useCompetitionSchedule();
 
   const isPaused = candidate.status === "paused";
   const isCouple = candidate.candidate_type === "couple";
@@ -487,21 +490,26 @@ export function CandidateCard({ candidate, rank }: CandidateCardProps) {
           <div style={{ display: "flex", gap: "0.5rem" }}>
             <button
               className="btn-vote"
-              disabled={isPaused}
-              onClick={() => setVoteModalOpen(true)}
+              disabled={isPaused || isVotingClosed}
+              onClick={() => !isPaused && !isVotingClosed && setVoteModalOpen(true)}
               style={{
                 flex: 1,
                 minHeight: 48,
                 justifyContent: "center",
                 fontSize: "1rem",
                 fontWeight: 800,
-                opacity: isPaused ? 0.5 : 1,
-                cursor: isPaused ? "not-allowed" : "pointer",
+                opacity: isPaused || isVotingClosed ? 0.5 : 1,
+                cursor: isPaused || isVotingClosed ? "not-allowed" : "pointer",
+                filter: isVotingClosed ? "grayscale(1)" : "none",
               }}
-              aria-label={`Vote for ${candidate.name} ($${pricePerVote} per vote)`}
+              aria-label={
+                isVotingClosed
+                  ? `Voting is closed for ${candidate.name}`
+                  : `Vote for ${candidate.name} ($${pricePerVote} per vote)`
+              }
             >
               <Vote size={18} />
-              VOTE NOW
+              {isVotingClosed ? "VOTING CLOSED" : "VOTE NOW"}
             </button>
 
             <Link
@@ -526,6 +534,13 @@ export function CandidateCard({ candidate, rank }: CandidateCardProps) {
             >
               <Eye size={18} />
             </Link>
+
+            <CandidateShareButtons
+              candidateId={candidate.id}
+              candidateName={candidate.display_name || candidate.name}
+              isCouple={isCouple}
+              compact
+            />
           </div>
         </div>
       </article>

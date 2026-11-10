@@ -6,6 +6,7 @@ import { formatNumber, SITE_URL } from "@/lib/utils";
 import { VoteModal } from "@/components/voting/VoteModal";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { ErrorState } from "@/components/ui/ErrorState";
+import { useCompetitionSchedule } from "@/hooks/useCompetitionSchedule";
 
 export function RankingPage() {
   const [candidates, setCandidates] = useState<PublicCandidate[]>([]);
@@ -13,6 +14,7 @@ export function RankingPage() {
   const [error, setError] = useState<string | null>(null);
   const [category, setCategory] = useState("");
   const [selectedCandidate, setSelectedCandidate] = useState<PublicCandidate | null>(null);
+  const { isVotingClosed } = useCompetitionSchedule();
 
   async function load() {
     setLoading(true);
@@ -359,11 +361,20 @@ export function RankingPage() {
 
                       <button
                         className="btn-vote"
-                        onClick={() => setSelectedCandidate(top1)}
-                        style={{ width: "100%", justifyContent: "center", minHeight: 48, fontSize: "1.0625rem" }}
+                        disabled={isVotingClosed}
+                        onClick={() => !isVotingClosed && setSelectedCandidate(top1)}
+                        style={{
+                          width: "100%",
+                          justifyContent: "center",
+                          minHeight: 48,
+                          fontSize: "1.0625rem",
+                          opacity: isVotingClosed ? 0.5 : 1,
+                          cursor: isVotingClosed ? "not-allowed" : "pointer",
+                          filter: isVotingClosed ? "grayscale(1)" : "none",
+                        }}
                       >
                         <Vote size={18} />
-                        VOTE FOR #1
+                        {isVotingClosed ? "VOTING CLOSED" : "VOTE FOR #1"}
                       </button>
                     </div>
                   </div>
@@ -464,11 +475,19 @@ export function RankingPage() {
 
                       <button
                         className="btn-vote"
-                        onClick={() => setSelectedCandidate(top2)}
-                        style={{ width: "100%", justifyContent: "center", minHeight: 46 }}
+                        disabled={isVotingClosed}
+                        onClick={() => !isVotingClosed && setSelectedCandidate(top2)}
+                        style={{
+                          width: "100%",
+                          justifyContent: "center",
+                          minHeight: 46,
+                          opacity: isVotingClosed ? 0.5 : 1,
+                          cursor: isVotingClosed ? "not-allowed" : "pointer",
+                          filter: isVotingClosed ? "grayscale(1)" : "none",
+                        }}
                       >
                         <Vote size={16} />
-                        Vote for #2
+                        {isVotingClosed ? "VOTING CLOSED" : "Vote for #2"}
                       </button>
                     </div>
                   </div>
@@ -569,11 +588,19 @@ export function RankingPage() {
 
                       <button
                         className="btn-vote"
-                        onClick={() => setSelectedCandidate(top3)}
-                        style={{ width: "100%", justifyContent: "center", minHeight: 46 }}
+                        disabled={isVotingClosed}
+                        onClick={() => !isVotingClosed && setSelectedCandidate(top3)}
+                        style={{
+                          width: "100%",
+                          justifyContent: "center",
+                          minHeight: 46,
+                          opacity: isVotingClosed ? 0.5 : 1,
+                          cursor: isVotingClosed ? "not-allowed" : "pointer",
+                          filter: isVotingClosed ? "grayscale(1)" : "none",
+                        }}
                       >
                         <Vote size={16} />
-                        Vote for #3
+                        {isVotingClosed ? "VOTING CLOSED" : "Vote for #3"}
                       </button>
                     </div>
                   </div>
@@ -683,11 +710,20 @@ export function RankingPage() {
 
                         <button
                           className="btn-vote"
-                          onClick={() => setSelectedCandidate(cand)}
-                          style={{ padding: "0.5rem 0.875rem", fontSize: "0.8125rem", minHeight: 44, flexShrink: 0 }}
+                          disabled={isVotingClosed}
+                          onClick={() => !isVotingClosed && setSelectedCandidate(cand)}
+                          style={{
+                            padding: "0.5rem 0.875rem",
+                            fontSize: "0.8125rem",
+                            minHeight: 44,
+                            flexShrink: 0,
+                            opacity: isVotingClosed ? 0.5 : 1,
+                            cursor: isVotingClosed ? "not-allowed" : "pointer",
+                            filter: isVotingClosed ? "grayscale(1)" : "none",
+                          }}
                         >
                           <Vote size={14} />
-                          Vote
+                          {isVotingClosed ? "CLOSED" : "Vote"}
                         </button>
                       </div>
                     );

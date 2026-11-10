@@ -145,6 +145,7 @@ export function Footer() {
                 { label: "How Voting Works", to: "/how-it-works" },
                 { label: "Individual Voting ($1/vote)", to: "/how-it-works" },
                 { label: "Couple Voting ($2/vote)", to: "/how-it-works" },
+                { label: "Voting Policy (All Votes Final)", to: "/voting-policy" },
                 { label: "FAQ", to: "/how-it-works#faq" },
               ].map((item, idx) => (
                 <Link
@@ -273,6 +274,21 @@ export function Footer() {
               onMouseLeave={(e) => { (e.target as HTMLElement).style.color = "rgba(255, 225, 232, 0.8)"; }}
             >
               Terms of Service
+            </Link>
+            <Link
+              to="/voting-policy"
+              style={{
+                color: "rgba(255, 225, 232, 0.8)",
+                textDecoration: "none",
+                transition: "color 0.15s ease",
+                minHeight: 44,
+                display: "inline-flex",
+                alignItems: "center",
+              }}
+              onMouseEnter={(e) => { (e.target as HTMLElement).style.color = "#FFFFFF"; }}
+              onMouseLeave={(e) => { (e.target as HTMLElement).style.color = "rgba(255, 225, 232, 0.8)"; }}
+            >
+              Voting Policy
             </Link>
             <Link
               to="/contact"

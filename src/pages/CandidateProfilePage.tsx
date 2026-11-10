@@ -7,12 +7,15 @@ import { formatNumber, SITE_URL } from "@/lib/utils";
 import { VoteModal } from "@/components/voting/VoteModal";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { ErrorState } from "@/components/ui/ErrorState";
+import { useCompetitionSchedule } from "@/hooks/useCompetitionSchedule";
+import { CandidateShareButtons } from "@/components/candidates/CandidateShareButtons";
 
 export function CandidateProfilePage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [candidate, setCandidate] = useState<PublicCandidate | null>(null);
   const [loading, setLoading] = useState(true);
+  const { isVotingClosed } = useCompetitionSchedule();
   const [error, setError] = useState<string | null>(null);
   const [imgError, setImgError] = useState(false);
   const [imgErrorTwo, setImgErrorTwo] = useState(false);
@@ -72,7 +75,7 @@ export function CandidateProfilePage() {
   const isCouple = candidate.candidate_type === "couple";
   const candidateDisplayName = candidate.display_name || candidate.name;
   const initials = candidate.name.split(" ").slice(0, 2).map((n) => n[0]).join("").toUpperCase();
-  const profileImage = candidate.photo_url || candidate.person_one_photo_url || `${SITE_URL}/og-image.jpg`;
+  const ogImageUrl = `${SITE_URL}/og/${candidate.id}.jpg`;
   const profileSchema = {
     "@context": "https://schema.org",
     "@graph": [
@@ -89,7 +92,7 @@ export function CandidateProfilePage() {
         name: candidateDisplayName,
         jobTitle: candidate.position,
         description: candidate.description ?? `Contestant in ${candidate.category} on Pair Up or Leave.`,
-        image: profileImage,
+        image: ogImageUrl,
         url: `${SITE_URL}/candidate/${candidate.id}`,
       },
     ],
@@ -98,16 +101,23 @@ export function CandidateProfilePage() {
   return (
     <>
       <Helmet>
-        <title>{`Vote for ${candidateDisplayName} (${candidate.category}) — Pair Up or Leave`}</title>
-        <meta name="description" content={`Support ${candidateDisplayName} (${candidate.position}) on Pair Up or Leave. ${candidate.description ?? ""} Cast your verified vote in real time!`} />
+        <title>{`Vote for ${candidateDisplayName} (${candidate.category || "Couple"}) — Pair Up or Leave`}</title>
+        <meta name="description" content={`Support ${candidateDisplayName} on Pair Up or Leave. ${candidate.description ?? ""} Cast your verified vote in real time!`} />
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="Pair Up or Leave" />
         <meta property="og:title" content={`Vote for ${candidateDisplayName} — Pair Up or Leave`} />
-        <meta property="og:description" content={`Support ${candidateDisplayName} — ${candidate.position}. Cast your votes now on Pair Up or Leave. ${IS_PLATFORM_SERVICE_FEE_ENABLED ? (isCouple ? "$2/vote base ($2.37 total for 1 vote w/ service fee)" : "$1/vote base ($1.34 total for 1 vote w/ service fee)") : (isCouple ? "$2/vote" : "$1/vote")}.`} />
+        <meta property="og:description" content={`Support ${candidateDisplayName} in the official PAIR UP OR LEAVE competition! Cast your votes now. ${IS_PLATFORM_SERVICE_FEE_ENABLED ? (isCouple ? "$2/vote base ($2.37 total for 1 vote w/ service fee)" : "$1/vote base ($1.34 total for 1 vote w/ service fee)") : (isCouple ? "$2/vote" : "$1/vote")}.`} />
         <meta property="og:url" content={`${SITE_URL}/candidate/${candidate.id}`} />
-        <meta property="og:image" content={profileImage} />
+        <meta property="og:image" content={ogImageUrl} />
+        <meta property="og:image:secure_url" content={ogImageUrl} />
+        <meta property="og:image:type" content="image/jpeg" />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta property="og:image:alt" content={`Vote for ${candidateDisplayName} — Pair Up or Leave`} />
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content={`Vote for ${candidateDisplayName} — Pair Up or Leave`} />
-        <meta name="twitter:description" content={`Support ${candidateDisplayName} (${candidate.position}) on Pair Up or Leave.`} />
-        <meta name="twitter:image" content={profileImage} />
+        <meta name="twitter:description" content={`Support ${candidateDisplayName} on Pair Up or Leave! Cast your verified votes now.`} />
+        <meta name="twitter:image" content={ogImageUrl} />
         <link rel="canonical" href={`${SITE_URL}/candidate/${candidate.id}`} />
         <script type="application/ld+json">{JSON.stringify(profileSchema)}</script>
       </Helmet>
@@ -278,15 +288,40 @@ export function CandidateProfilePage() {
               {/* Vote CTA */}
               <button
                 className="btn-vote"
-                style={{ width: "100%", justifyContent: "center", padding: "1rem", fontSize: "1.125rem", opacity: isPaused ? 0.5 : 1, cursor: isPaused ? "not-allowed" : "pointer" }}
-                onClick={() => !isPaused && setVoteModalOpen(true)}
-                disabled={isPaused}
-                aria-label={isPaused ? "Voting paused for this candidate" : `Vote for ${candidate.name}`}
+                style={{
+                  width: "100%",
+                  justifyContent: "center",
+                  padding: "1rem",
+                  fontSize: "1.125rem",
+                  opacity: isPaused || isVotingClosed ? 0.5 : 1,
+                  cursor: isPaused || isVotingClosed ? "not-allowed" : "pointer",
+                  filter: isVotingClosed ? "grayscale(1)" : "none",
+                }}
+                onClick={() => !isPaused && !isVotingClosed && setVoteModalOpen(true)}
+                disabled={isPaused || isVotingClosed}
+                aria-label={
+                  isVotingClosed
+                    ? "Voting is closed"
+                    : isPaused
+                    ? "Voting paused for this candidate"
+                    : `Vote for ${candidate.name}`
+                }
                 id="profile-vote-btn"
               >
                 <Vote size={20} />
-                {isPaused ? "Voting Paused" : `Vote for ${candidateDisplayName}`}
+                {isVotingClosed
+                  ? "VOTING CLOSED"
+                  : isPaused
+                  ? "Voting Paused"
+                  : `Vote for ${candidateDisplayName}`}
               </button>
+
+              {/* WhatsApp & Social Rally Sharing */}
+              <CandidateShareButtons
+                candidateId={candidate.id}
+                candidateName={candidateDisplayName}
+                isCouple={isCouple}
+              />
             </div>
 
             {/* Right — Bio */}

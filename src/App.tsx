@@ -24,6 +24,7 @@ const RankingPage = lazy(() => import("@/pages/RankingPage").then(m => ({ defaul
 const ContactPage = lazy(() => import("@/pages/InfoPages").then(m => ({ default: m.ContactPage })));
 const PrivacyPage = lazy(() => import("@/pages/InfoPages").then(m => ({ default: m.PrivacyPage })));
 const TermsPage = lazy(() => import("@/pages/InfoPages").then(m => ({ default: m.TermsPage })));
+const VotingPolicyPage = lazy(() => import("@/pages/VotingPolicyPage").then(m => ({ default: m.VotingPolicyPage })));
 
 // Code-split all admin pages (AdminAnalyticsPage brings Recharts - completely eliminated from public bundle)
 const AdminLoginPage = lazy(() => import("@/pages/admin/AdminLoginPage").then(m => ({ default: m.AdminLoginPage })));
@@ -322,6 +323,14 @@ export default function App() {
               element={
                 <PublicLayout>
                   <TermsPage />
+                </PublicLayout>
+              }
+            />
+            <Route
+              path="/voting-policy"
+              element={
+                <PublicLayout>
+                  <VotingPolicyPage />
                 </PublicLayout>
               }
             />

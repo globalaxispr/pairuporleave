@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Vote, Heart, X } from "lucide-react";
+import { Vote, Heart, X, Trophy } from "lucide-react";
 import { IS_PLATFORM_SERVICE_FEE_ENABLED } from "@/lib/supabase";
+import { useCompetitionSchedule } from "@/hooks/useCompetitionSchedule";
 
 export function MobileStickyVote() {
   const location = useLocation();
   const navigate = useNavigate();
   const [dismissed, setDismissed] = useState(false);
+  const { isVotingClosed } = useCompetitionSchedule();
 
   // Do not show on admin routes, checkout result pages, or if dismissed
   const isHidden =
@@ -20,6 +22,10 @@ export function MobileStickyVote() {
   if (isHidden) return null;
 
   const handleClick = () => {
+    if (isVotingClosed) {
+      navigate("/ranking");
+      return;
+    }
     if (location.pathname === "/") {
       const el = document.getElementById("live-ranking");
       if (el) {
@@ -83,13 +89,15 @@ export function MobileStickyVote() {
             <div style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
               <Heart size={13} color="#E51B3E" fill="#E51B3E" />
               <span style={{ fontSize: "0.8125rem", fontWeight: 800, color: "#24131A" }}>
-                {IS_PLATFORM_SERVICE_FEE_ENABLED
+                {isVotingClosed
+                  ? "Voting Period Concluded"
+                  : IS_PLATFORM_SERVICE_FEE_ENABLED
                   ? "1 Vote: $1 ($1.34 w/ fee) · Couples: $2 ($2.37 w/ fee)"
                   : "1 Vote = $1 · Couples = $2"}
               </span>
             </div>
             <span style={{ fontSize: "0.6875rem", color: "#6B6870" }}>
-              Live real-time voting
+              {isVotingClosed ? "Check final standings" : "Live real-time voting"}
             </span>
           </div>
         </div>
@@ -102,11 +110,21 @@ export function MobileStickyVote() {
             fontSize: "0.875rem",
             fontWeight: 800,
             minHeight: 44,
+            background: isVotingClosed ? "#4A061C" : undefined,
           }}
-          aria-label="Vote now"
+          aria-label={isVotingClosed ? "View rankings" : "Vote now"}
         >
-          <Vote size={15} />
-          VOTE NOW
+          {isVotingClosed ? (
+            <>
+              <Trophy size={15} />
+              RANKING
+            </>
+          ) : (
+            <>
+              <Vote size={15} />
+              VOTE NOW
+            </>
+          )}
         </button>
       </div>
     </div>

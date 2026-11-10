@@ -6,6 +6,7 @@ import { formatNumber, SITE_URL } from "@/lib/utils";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { VoteModal } from "@/components/voting/VoteModal";
+import { useCompetitionSchedule } from "@/hooks/useCompetitionSchedule";
 
 const rankBadges: Record<number, { bg: string; color: string; border: string; label: string }> = {
   0: { bg: "#7A0C2E", color: "#ffffff", border: "#7A0C2E", label: "#1" },
@@ -19,6 +20,7 @@ export function ResultsPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedCandidate, setSelectedCandidate] = useState<PublicCandidate | null>(null);
   const [animateBars, setAnimateBars] = useState(false);
+  const { isVotingClosed } = useCompetitionSchedule();
 
   async function load() {
     setLoading(true);
@@ -380,7 +382,8 @@ export function ResultsPage() {
                       {/* Vote button on each result card */}
                       <button
                         className="btn-vote"
-                        onClick={() => setSelectedCandidate(c)}
+                        disabled={isVotingClosed}
+                        onClick={() => !isVotingClosed && setSelectedCandidate(c)}
                         style={{
                           padding: "0.5rem 0.95rem",
                           fontSize: "0.8125rem",
@@ -388,11 +391,14 @@ export function ResultsPage() {
                           minHeight: 44,
                           flexShrink: 0,
                           borderRadius: 10,
+                          opacity: isVotingClosed ? 0.5 : 1,
+                          cursor: isVotingClosed ? "not-allowed" : "pointer",
+                          filter: isVotingClosed ? "grayscale(1)" : "none",
                         }}
-                        aria-label={`Vote for ${c.name}`}
+                        aria-label={isVotingClosed ? `Voting is closed for ${c.name}` : `Vote for ${c.name}`}
                       >
                         <Vote size={14} />
-                        Vote
+                        {isVotingClosed ? "Closed" : "Vote"}
                       </button>
                     </div>
                   </article>

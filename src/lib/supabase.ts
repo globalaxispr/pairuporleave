@@ -1414,18 +1414,19 @@ export async function fetchCompetitionSchedule(): Promise<CompetitionSchedule> {
       }
 
       if (data) {
+        const row = data as Record<string, unknown>;
         const schedule: CompetitionSchedule = {
-          id: data.id,
-          name: data.name || DEFAULT_COMPETITION_SCHEDULE.name,
-          is_enabled: data.is_enabled ?? true,
-          start_time: data.start_time || DEFAULT_COMPETITION_SCHEDULE.start_time,
-          end_time: data.end_time || DEFAULT_COMPETITION_SCHEDULE.end_time,
-          timezone: data.timezone || DEFAULT_COMPETITION_SCHEDULE.timezone,
-          title: data.title || DEFAULT_COMPETITION_SCHEDULE.title,
-          description: data.description ?? DEFAULT_COMPETITION_SCHEDULE.description,
-          created_at: data.created_at,
-          updated_at: data.updated_at,
-          updated_by: data.updated_by,
+          id: (row.id as string) || "active",
+          name: (row.competition_name as string) || (row.name as string) || DEFAULT_COMPETITION_SCHEDULE.name,
+          is_enabled: row.is_published !== undefined ? Boolean(row.is_published) : (row.is_enabled !== undefined ? Boolean(row.is_enabled) : true),
+          start_time: (row.start_time as string) || DEFAULT_COMPETITION_SCHEDULE.start_time,
+          end_time: (row.end_time as string) || DEFAULT_COMPETITION_SCHEDULE.end_time,
+          timezone: (row.timezone as string) || DEFAULT_COMPETITION_SCHEDULE.timezone,
+          title: (row.title as string) || DEFAULT_COMPETITION_SCHEDULE.title,
+          description: (row.description as string | null) ?? DEFAULT_COMPETITION_SCHEDULE.description,
+          created_at: row.created_at as string | undefined,
+          updated_at: row.updated_at as string | undefined,
+          updated_by: row.updated_by as string | undefined | null,
         };
         saveCachedCompetitionSchedule(schedule);
         scheduleInFlight = null;
@@ -1453,47 +1454,63 @@ export async function updateCompetitionSchedule(
     updated_at: new Date().toISOString(),
   };
 
-  saveCachedCompetitionSchedule(updated);
-
   if (!IS_SUPABASE_READY) {
+    saveCachedCompetitionSchedule(updated);
     return { success: true, data: updated };
   }
 
   try {
+    // Write using the authoritative PostgreSQL schema columns:
+    // competition_name, is_published, start_time, end_time, timezone, updated_at
+    const dbPayload: Record<string, unknown> = {
+      id: "active",
+      competition_name: updated.name,
+      is_published: updated.is_enabled,
+      start_time: updated.start_time,
+      end_time: updated.end_time,
+      timezone: updated.timezone || "America/New_York",
+      updated_at: updated.updated_at,
+    };
+
     const { data, error } = await supabase
       .from("competition_schedule")
-      .upsert({
-        id: "active",
-        name: updated.name,
-        is_enabled: updated.is_enabled,
-        start_time: updated.start_time,
-        end_time: updated.end_time,
-        timezone: updated.timezone,
-        title: updated.title,
-        description: updated.description,
-        updated_at: updated.updated_at,
-      })
+      .upsert(dbPayload)
       .select()
       .maybeSingle();
 
     if (error) {
-      console.warn("[Competition] Supabase upsert error, saved locally:", error.message);
+      console.error("[Competition] Supabase upsert error:", error.message);
       return {
-        success: true,
-        data: updated,
-        error: `Saved locally, but database returned: ${error.message}. Please verify migration 12 is executed in Supabase.`,
+        success: false,
+        data: current,
+        error: `Database save failed: ${error.message}. Changes were NOT saved.`,
       };
     }
 
+    const row = (data || {}) as Record<string, unknown>;
+    const saved: CompetitionSchedule = {
+      ...updated,
+      id: (row.id as string) || "active",
+      name: (row.competition_name as string) || (row.name as string) || updated.name,
+      is_enabled: row.is_published !== undefined ? Boolean(row.is_published) : (row.is_enabled !== undefined ? Boolean(row.is_enabled) : updated.is_enabled),
+      start_time: (row.start_time as string) || updated.start_time,
+      end_time: (row.end_time as string) || updated.end_time,
+      timezone: (row.timezone as string) || updated.timezone,
+      updated_at: (row.updated_at as string) || updated.updated_at,
+    };
+
+    saveCachedCompetitionSchedule(saved);
+
     return {
       success: true,
-      data: (data as CompetitionSchedule) || updated,
+      data: saved,
     };
   } catch (err: any) {
+    console.error("[Competition] Unexpected error saving schedule:", err?.message);
     return {
-      success: true,
-      data: updated,
-      error: `Saved locally: ${err?.message || "Unknown network error"}`,
+      success: false,
+      data: current,
+      error: `Network error saving to database: ${err?.message || "Unknown error"}`,
     };
   }
 }
