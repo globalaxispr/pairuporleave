@@ -17,79 +17,135 @@ export interface CompetitionScheduleState {
   loading: boolean;
 }
 
-export function useCompetitionSchedule(): CompetitionScheduleState {
-  const [schedule, setSchedule] = useState<CompetitionSchedule>(DEFAULT_COMPETITION_SCHEDULE);
-  const [status, setStatus] = useState<CompetitionStatus>("VOTING_OPEN");
-  const [loading, setLoading] = useState(true);
+// Module-level singleton state to prevent duplicate Realtime channel subscriptions
+let sharedSchedule: CompetitionSchedule = DEFAULT_COMPETITION_SCHEDULE;
+let sharedStatus: CompetitionStatus = "VOTING_OPEN";
+let sharedLoading = true;
+let sharedChannel: ReturnType<typeof supabase.channel> | null = null;
+let intervalId: ReturnType<typeof setInterval> | null = null;
+let subscribersCount = 0;
+const listeners = new Set<() => void>();
+let initialFetchPromise: Promise<void> | null = null;
 
-  useEffect(() => {
-    let isMounted = true;
+function notifyListeners() {
+  for (const listener of listeners) {
+    listener();
+  }
+}
 
-    async function load() {
-      try {
-        const data = await fetchCompetitionSchedule();
-        if (!isMounted) return;
-        setSchedule(data);
-        setStatus(getCompetitionStatus(data, Date.now()));
-      } finally {
-        if (isMounted) setLoading(false);
-      }
-    }
+async function ensureScheduleLoaded() {
+  if (!initialFetchPromise) {
+    initialFetchPromise = fetchCompetitionSchedule()
+      .then((data) => {
+        sharedSchedule = data;
+        sharedStatus = getCompetitionStatus(data, Date.now());
+      })
+      .catch((err) => {
+        console.warn("[useCompetitionSchedule] Schedule fetch failed, using fallback:", err);
+      })
+      .finally(() => {
+        sharedLoading = false;
+        notifyListeners();
+      });
+  }
+  return initialFetchPromise;
+}
 
-    void load();
+function startRealtimeSubscription() {
+  if (sharedChannel) return;
 
-    // Listen for realtime schedule changes from PostgreSQL
-    const channel = supabase
-      .channel("competition-schedule-status-hook")
+  try {
+    sharedChannel = supabase
+      .channel("competition-schedule-status-singleton")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "competition_schedule" },
         (payload) => {
           if (payload.new && typeof payload.new === "object") {
             const updated = payload.new as Record<string, unknown>;
-            setSchedule((prev) => {
-              const next: CompetitionSchedule = {
-                ...prev,
-                name: (updated.competition_name as string) || (updated.name as string) || prev.name,
-                is_enabled:
-                  updated.is_published !== undefined
-                    ? Boolean(updated.is_published)
-                    : updated.is_enabled !== undefined
-                    ? Boolean(updated.is_enabled)
-                    : prev.is_enabled,
-                start_time: (updated.start_time as string) || prev.start_time,
-                end_time: (updated.end_time as string) || prev.end_time,
-                timezone: (updated.timezone as string) || prev.timezone,
-                title: (updated.title as string) || prev.title,
-                description: (updated.description as string | null) ?? prev.description,
-              };
-              setStatus(getCompetitionStatus(next, Date.now()));
-              return next;
-            });
+            sharedSchedule = {
+              ...sharedSchedule,
+              name: (updated.competition_name as string) || (updated.name as string) || sharedSchedule.name,
+              is_enabled:
+                updated.is_published !== undefined
+                  ? Boolean(updated.is_published)
+                  : updated.is_enabled !== undefined
+                  ? Boolean(updated.is_enabled)
+                  : sharedSchedule.is_enabled,
+              start_time: (updated.start_time as string) || sharedSchedule.start_time,
+              end_time: (updated.end_time as string) || sharedSchedule.end_time,
+              timezone: (updated.timezone as string) || sharedSchedule.timezone,
+              title: (updated.title as string) || sharedSchedule.title,
+              description: (updated.description as string | null) ?? sharedSchedule.description,
+            };
+            sharedStatus = getCompetitionStatus(sharedSchedule, Date.now());
+            notifyListeners();
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "CHANNEL_ERROR") {
+          console.warn("[useCompetitionSchedule] Realtime channel error, polling fallback remains active");
+        }
+      });
+  } catch (err) {
+    console.warn("[useCompetitionSchedule] Could not start realtime subscription:", err);
+  }
 
-    // Re-check status every 10 seconds to detect deadline crossing in real time
-    const interval = setInterval(() => {
-      setStatus(getCompetitionStatus(schedule, Date.now()));
+  if (!intervalId) {
+    intervalId = setInterval(() => {
+      const nextStatus = getCompetitionStatus(sharedSchedule, Date.now());
+      if (nextStatus !== sharedStatus) {
+        sharedStatus = nextStatus;
+        notifyListeners();
+      }
     }, 10000);
-
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-      void supabase.removeChannel(channel);
-    };
-  }, [schedule]);
-
-  return {
-    schedule,
-    status,
-    isVotingClosed: status === "VOTING_CLOSED",
-    isVotingOpen: status === "VOTING_OPEN",
-    isUpcoming: status === "UPCOMING",
-    loading,
-  };
+  }
 }
 
+function stopRealtimeSubscription() {
+  if (subscribersCount <= 0) {
+    if (intervalId) {
+      clearInterval(intervalId);
+      intervalId = null;
+    }
+    if (sharedChannel) {
+      try {
+        void supabase.removeChannel(sharedChannel);
+      } catch (err) {
+        // ignore
+      }
+      sharedChannel = null;
+    }
+  }
+}
+
+export function useCompetitionSchedule(): CompetitionScheduleState {
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    subscribersCount++;
+    const update = () => setTick((t) => t + 1);
+    listeners.add(update);
+
+    void ensureScheduleLoaded();
+    startRealtimeSubscription();
+
+    return () => {
+      listeners.delete(update);
+      subscribersCount--;
+      if (subscribersCount <= 0) {
+        stopRealtimeSubscription();
+      }
+    };
+  }, []);
+
+  return {
+    schedule: sharedSchedule,
+    status: sharedStatus,
+    isVotingClosed: sharedStatus === "VOTING_CLOSED",
+    isVotingOpen: sharedStatus === "VOTING_OPEN",
+    isUpcoming: sharedStatus === "UPCOMING",
+    loading: sharedLoading,
+  };
+}
