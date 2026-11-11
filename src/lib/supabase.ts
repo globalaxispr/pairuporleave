@@ -92,11 +92,11 @@ export function getVotePriceCents(type?: CandidateType | string | null): number 
 
 /**
  * Feature flag controlling whether the mandatory Platform Service Fee is active in the UI
- * and sent with pricing_version="all_in_v1" to create-checkout-session.
- * Defaults to false (disabled) until VITE_ENABLE_PLATFORM_SERVICE_FEE="true" is explicitly set.
+ * and sent with pricing_version="tiered_v2" to create-checkout-session.
+ * Active in production unless VITE_ENABLE_PLATFORM_SERVICE_FEE="false" is explicitly set.
  */
 export const IS_PLATFORM_SERVICE_FEE_ENABLED =
-  import.meta.env.VITE_ENABLE_PLATFORM_SERVICE_FEE === "true";
+  import.meta.env.VITE_ENABLE_PLATFORM_SERVICE_FEE !== "false";
 
 export const PRICING_VERSION = IS_PLATFORM_SERVICE_FEE_ENABLED ? TIERED_PRICING_VERSION : LEGACY_PRICING_VERSION;
 

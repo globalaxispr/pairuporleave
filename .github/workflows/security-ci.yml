@@ -62,7 +62,7 @@ jobs:
         run: npm run build
         env:
           VITE_SITE_URL: https://www.pairuporleave.com
-          VITE_ENABLE_PLATFORM_SERVICE_FEE: "false"
+          VITE_ENABLE_PLATFORM_SERVICE_FEE: "true"
 
   edge-function-tests:
     name: Webhook & Payment Idempotency Tests
