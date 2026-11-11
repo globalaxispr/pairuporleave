@@ -14,7 +14,7 @@ import {
 
 const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
 const stripe = stripeSecretKey
-  ? new Stripe(stripeSecretKey, { apiVersion: "2024-06-20" })
+  ? new Stripe(stripeSecretKey, { apiVersion: "2024-06-20" as Stripe.StripeConfig["apiVersion"] })
   : null;
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
@@ -310,7 +310,10 @@ Deno.serve(async (req) => {
     const serverFeeFlagEnabled =
       (Deno.env.get("ENABLE_PLATFORM_SERVICE_FEE") ?? "false").toLowerCase() === "true";
 
-    if (serverFeeFlagEnabled && pricing_version !== TIERED_PRICING_VERSION) {
+    if (
+      (serverFeeFlagEnabled && pricing_version !== TIERED_PRICING_VERSION) ||
+      (!serverFeeFlagEnabled && pricing_version !== undefined && pricing_version !== LEGACY_PRICING_VERSION)
+    ) {
       return new Response(
         JSON.stringify({
           error:

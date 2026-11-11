@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { X, Minus, Plus, Vote, Loader2, AlertCircle, Lock, Users, User } from "lucide-react";
 import {
@@ -134,7 +135,7 @@ export function VoteModal({ candidate, onClose }: VoteModalProps) {
     }
   }, [loading, isVotingClosed, policyAccepted, quantity, candidate.id, pricing.totalAmountCents]);
 
-  return (
+  const modalMarkup = (
     <div
       className="modal-overlay"
       onClick={(e) => e.target === e.currentTarget && onClose()}
@@ -653,4 +654,6 @@ export function VoteModal({ candidate, onClose }: VoteModalProps) {
       </div>
     </div>
   );
+
+  return typeof document !== "undefined" ? createPortal(modalMarkup, document.body) : modalMarkup;
 }
