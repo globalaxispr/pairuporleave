@@ -7,6 +7,7 @@ import {
   getSingleVoteAllInPriceFormatted,
   IS_PLATFORM_SERVICE_FEE_ENABLED,
   PRICING_VERSION,
+  SERVICE_FEE_TIER_SUMMARY,
   type PublicCandidate,
   getCandidateScore,
   supabaseUrl,
@@ -20,7 +21,7 @@ interface VoteModalProps {
   onClose: () => void;
 }
 
-const QUICK_AMOUNTS = [1, 5, 10, 25, 50, 100];
+const QUICK_AMOUNTS = [1, 5, 10, 20, 50, 100];
 
 export function VoteModal({ candidate, onClose }: VoteModalProps) {
   const [quantity, setQuantity] = useState(10);
@@ -417,14 +418,34 @@ export function VoteModal({ candidate, onClose }: VoteModalProps) {
             {pricing.serviceFeeCents > 0 && (
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span style={{ color: "#6B6870", fontSize: "0.8125rem", fontWeight: 600 }}>
-                  Platform Service Fee (mandatory · adds 0 votes)
+                  Service Fee ({formatNumber(quantity)} × {formatCurrency(pricing.serviceFeePerVoteCents)}
+                  {pricing.discountTierApplied ? " · 20+ vote discount" : ""}) · adds 0 votes
                 </span>
-                <span style={{ color: "#24131A", fontSize: "0.8125rem", fontWeight: 700 }}>
+                <span id="service-fee-amount" style={{ color: "#24131A", fontSize: "0.8125rem", fontWeight: 700 }}>
                   {formatCurrency(pricing.serviceFeeCents)}
                 </span>
               </div>
             )}
 
+            {IS_PLATFORM_SERVICE_FEE_ENABLED && (
+              <div
+                id="service-fee-tier-notice"
+                style={{
+                  background: pricing.discountTierApplied ? "#ECFDF5" : "#FFF3F5",
+                  border: `1px solid ${pricing.discountTierApplied ? "#A7F3D0" : "#F0DCE2"}`,
+                  borderRadius: 10,
+                  padding: "0.4rem 0.625rem",
+                  fontSize: "0.71875rem",
+                  fontWeight: 700,
+                  color: pricing.discountTierApplied ? "#047857" : "#7A0C2E",
+                }}
+              >
+                {pricing.discountTierApplied
+                  ? "Discount applied: $0.50/vote service fee on all your votes (20+ votes)."
+                  : "Buy 20 or more votes and the service fee drops from $0.80 to $0.50 per vote, on every vote."}
+                <div style={{ fontWeight: 600, marginTop: 2, opacity: 0.85 }}>{SERVICE_FEE_TIER_SUMMARY}</div>
+              </div>
+            )}
             {pricing.taxCents > 0 && (
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span style={{ color: "#6B6870", fontSize: "0.8125rem", fontWeight: 600 }}>

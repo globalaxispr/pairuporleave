@@ -15,7 +15,7 @@ import { SITE_URL } from "@/lib/utils";
 
 export function HomePage() {
   const description = IS_PLATFORM_SERVICE_FEE_ENABLED
-    ? "Pair Up or Leave is the official voting platform. Support your favorite couples and candidates with secure Stripe payments. $1/vote base ($1.34 w/ service fee for 1 vote) for individuals, $2/vote base ($2.37 w/ service fee for 1 vote) for couples. No account required."
+    ? "Pair Up or Leave is the official voting platform. Support your favorite couples and candidates with secure Stripe payments. $1/vote base ($1.80 w/ service fee for 1 vote) for individuals, $2/vote base ($2.80 w/ service fee for 1 vote) for couples. No account required."
     : "Pair Up or Leave is the official voting platform. Support your favorite couples and candidates with secure Stripe payments. $1/vote for individuals, $2/vote for couples. No account required.";
 
   const websiteSchema = {
@@ -49,7 +49,7 @@ export function HomePage() {
           property="og:description"
           content={
             IS_PLATFORM_SERVICE_FEE_ENABLED
-              ? "Support your favorite couples and candidates. $1/vote base ($1.34 w/ fee) for individuals, $2/vote base ($2.37 w/ fee) for couples. Secure payments via Stripe."
+              ? "Support your favorite couples and candidates. $1/vote base ($1.80 w/ fee) for individuals, $2/vote base ($2.80 w/ fee) for couples. Secure payments via Stripe."
               : "Support your favorite couples and candidates. $1/vote for individuals, $2/vote for couples. Secure payments via Stripe."
           }
         />

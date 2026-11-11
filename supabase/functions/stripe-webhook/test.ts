@@ -1117,3 +1117,111 @@ Deno.test("19. payment accounting invariant mismatch marks payment failed and re
   assertEquals(mockDb.paymentRecord.status, "failed");
   assertEquals(mockDb.rpcCalls["confirm_stripe_payment"]?.count ?? 0, 0);
 });
+
+
+// ---------------------------------------------------------------------------
+// 20. TIERED SERVICE FEE (tiered_v2): for every approved quantity the webhook credits
+//     exactly vote_quantity (never derived from fee/total), validates Stripe amount_total
+//     against the stored total, and redelivery is idempotent (RPC invoked once).
+// ---------------------------------------------------------------------------
+Deno.test("20. tiered_v2 fee payments credit only vote_quantity and webhook redelivery is idempotent", async () => {
+  const quantities = [1, 10, 19, 20, 21, 50, 100, 1000];
+  for (const type of ["individual", "couple"] as const) {
+    for (const q of quantities) {
+      const unit = type === "couple" ? 200 : 100;
+      const feePerVote = q >= 20 ? 50 : 80;
+      const subtotal = q * unit;
+      const fee = q * feePerVote;
+      const total = subtotal + fee;
+      const sid = `cs_tier_${type}_${q}`;
+      const mockDb = new MockSupabase({
+        id: `pay_tier_${type}_${q}`,
+        stripe_session_id: sid,
+        status: "pending",
+        subtotal_amount: subtotal,
+        service_fee_amount: fee,
+        tax_amount: 0,
+        amount: total,
+        currency: "usd",
+        candidate_id: "cand_tier",
+        vote_quantity: q,
+        candidate_type: type,
+        vote_price: unit,
+        stripe_payment_intent_id: null,
+        created_at: new Date().toISOString(),
+      });
+      const { handleCheckoutCompleted } = createHandlers({ supabaseAdmin: mockDb as any });
+      const session = makeSession({
+        id: sid,
+        payment_status: "paid",
+        amount_total: total,
+        currency: "usd",
+        payment_intent: `pi_tier_${type}_${q}`,
+        metadata: { candidate_id: "cand_tier", vote_quantity: String(q), pricing_version: "tiered_v2" } as any,
+      });
+
+      await handleCheckoutCompleted(session);
+      await handleCheckoutCompleted(session); // duplicate delivery
+
+      assertEquals(mockDb.paymentRecord.status, "paid", `${type} ${q}`);
+      assertEquals(mockDb.rpcCalls["confirm_stripe_payment"].count, 1, `idempotent ${type} ${q}`);
+      const args = mockDb.rpcCalls["confirm_stripe_payment"].args[0];
+      assertEquals(args.p_vote_quantity, q, `votes credited must equal purchased quantity (${type} ${q})`);
+      assertEquals(args.p_vote_price, unit);
+    }
+  }
+});
+
+Deno.test("21. tiered_v2 session whose Stripe amount_total differs from stored total is refused (no votes)", async () => {
+  // couple, 20 votes: stored $50.00; attacker/legacy path reports $53.20 (19-vote price) or $40.00 (no fee)
+  for (const stripeTotal of [5320, 4000]) {
+    const mockDb = new MockSupabase({
+      id: "pay_tier_mismatch",
+      stripe_session_id: "cs_tier_mismatch",
+      status: "pending",
+      subtotal_amount: 4000,
+      service_fee_amount: 1000,
+      tax_amount: 0,
+      amount: 5000,
+      currency: "usd",
+      candidate_id: "cand_tier",
+      vote_quantity: 20,
+      candidate_type: "couple",
+      vote_price: 200,
+      stripe_payment_intent_id: null,
+      created_at: new Date().toISOString(),
+    });
+    const { handleCheckoutCompleted } = createHandlers({ supabaseAdmin: mockDb as any });
+    await handleCheckoutCompleted(
+      makeSession({ id: "cs_tier_mismatch", payment_status: "paid", amount_total: stripeTotal, currency: "usd", payment_intent: "pi_tier_mismatch" })
+    );
+    assertEquals(mockDb.paymentRecord.status, "failed");
+    assertEquals(mockDb.rpcCalls["confirm_stripe_payment"], undefined);
+  }
+});
+
+Deno.test("22. existing pre-tier payments (legacy base-only and old all_in_v1 percentage-fee rows) still confirm", async () => {
+  const rows = [
+    { sub: 500, fee: 0, q: 5 },   // legacy base-only
+    { sub: 1000, fee: 61, q: 10 }, // old all_in_v1 gross-up fee
+    { sub: 200, fee: 137, q: 1 },
+  ];
+  let i = 0;
+  for (const r of rows) {
+    i++;
+    const sid = `cs_compat_${i}`;
+    const mockDb = new MockSupabase({
+      id: `pay_compat_${i}`, stripe_session_id: sid, status: "pending",
+      subtotal_amount: r.sub, service_fee_amount: r.fee, tax_amount: 0, amount: r.sub + r.fee,
+      currency: "usd", candidate_id: "cand_c", vote_quantity: r.q,
+      candidate_type: r.sub / r.q === 200 ? "couple" : "individual", vote_price: r.sub / r.q,
+      stripe_payment_intent_id: null, created_at: new Date().toISOString(),
+    });
+    const { handleCheckoutCompleted } = createHandlers({ supabaseAdmin: mockDb as any });
+    await handleCheckoutCompleted(
+      makeSession({ id: sid, payment_status: "paid", amount_total: r.sub + r.fee, currency: "usd", payment_intent: `pi_compat_${i}` })
+    );
+    assertEquals(mockDb.paymentRecord.status, "paid");
+    assertEquals(mockDb.rpcCalls["confirm_stripe_payment"].args[0].p_vote_quantity, r.q);
+  }
+});

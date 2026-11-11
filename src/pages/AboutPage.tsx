@@ -235,7 +235,7 @@ export function AboutPage() {
               </p>
               <p style={{ margin: 0, color: "#6B6870" }}>
                 {IS_PLATFORM_SERVICE_FEE_ENABLED
-                  ? "Whether you're supporting a dedicated individual candidate at $1.00 base per vote ($1.34 total for 1 vote w/ platform service fee) or an inspiring couple team at $2.00 base per vote ($2.37 total for 1 vote w/ platform service fee), your participation is backed by transparent Stripe verification and instant leaderboard updates."
+                  ? "Whether you're supporting a dedicated individual candidate at $1.00 base per vote ($1.80 total for 1 vote w/ platform service fee) or an inspiring couple team at $2.00 base per vote ($2.80 total for 1 vote w/ platform service fee), your participation is backed by transparent Stripe verification and instant leaderboard updates."
                   : "Whether you're supporting a dedicated individual candidate at $1 per vote or an inspiring couple team at $2 per vote, your participation is backed by transparent Stripe verification and instant leaderboard updates."}
               </p>
             </div>

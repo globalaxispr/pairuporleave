@@ -376,20 +376,23 @@ export function TermsPage() {
           {IS_PLATFORM_SERVICE_FEE_ENABLED ? (
             <>
               <p style={bodyText}>
-                <strong>Individual candidates:</strong> Each vote has a base value of $1.00 USD ($1.34
+                <strong>Individual candidates:</strong> Each vote has a base value of $1.00 USD ($1.80
                 USD total for a single-vote purchase including the mandatory Platform Service Fee). The
                 candidate receives the exact number of votes purchased.
               </p>
               <p style={bodyText}>
-                <strong>Couple entries:</strong> Each vote has a base value of $2.00 USD ($2.37 USD
+                <strong>Couple entries:</strong> Each vote has a base value of $2.00 USD ($2.80 USD
                 total for a single-vote purchase including the mandatory Platform Service Fee). The
                 couple receives the exact number of votes purchased.
               </p>
               <p style={bodyText}>
                 <strong>Platform Service Fee:</strong> Every checkout transaction includes a mandatory
-                Platform Service Fee calculated in integer cents as{" "}
-                <code>ceil((subtotal + $0.30) / (1 - 0.029)) - subtotal</code> to help cover payment
-                processing and platform operations. The Platform Service Fee is a commercial service
+                Platform Service Fee, calculated per vote in whole cents: <strong>$0.80 per vote</strong>{" "}
+                when you purchase 1&ndash;19 votes in a checkout, or <strong>$0.50 per vote on all
+                votes</strong> when you purchase 20 or more votes in that checkout. The tier is based
+                only on the quantity in the current checkout, not on past purchases. Because the lower
+                rate applies to every vote at 20+, a 20-vote checkout can cost less than a 19-vote
+                checkout. The fee helps cover payment processing and platform operations. The Platform Service Fee is a commercial service
                 charge (not a government tax) and never increases the number of votes credited. The
                 complete itemized breakdown (Base Vote Subtotal, Platform Service Fee, any applicable
                 government tax if required, and Total Due) is displayed prior to payment authorization.

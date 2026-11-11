@@ -15,7 +15,7 @@ const steps = [
     icon: Vote,
     title: "Vote",
     description: IS_PLATFORM_SERVICE_FEE_ENABLED
-      ? "Choose how many votes you want to cast. Individual votes are $1.00 base ($1.34 total for 1 vote w/ platform service fee), and couple votes are $2.00 base ($2.37 total for 1 vote w/ platform service fee)."
+      ? "Choose how many votes you want to cast. Individual votes are $1.00 base ($1.80 total for 1 vote w/ platform service fee), and couple votes are $2.00 base ($2.80 total for 1 vote w/ platform service fee)."
       : "Choose how many votes you want to cast. Individual votes are $1 each, and couple votes are $2 each.",
     color: "#E51B3E",
     bg: "#FFF3F5",

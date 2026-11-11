@@ -106,7 +106,7 @@ export function CandidateProfilePage() {
         <meta property="og:type" content="website" />
         <meta property="og:site_name" content="Pair Up or Leave" />
         <meta property="og:title" content={`Vote for ${candidateDisplayName} — Pair Up or Leave`} />
-        <meta property="og:description" content={`Support ${candidateDisplayName} in the official PAIR UP OR LEAVE competition! Cast your votes now. ${IS_PLATFORM_SERVICE_FEE_ENABLED ? (isCouple ? "$2/vote base ($2.37 total for 1 vote w/ service fee)" : "$1/vote base ($1.34 total for 1 vote w/ service fee)") : (isCouple ? "$2/vote" : "$1/vote")}.`} />
+        <meta property="og:description" content={`Support ${candidateDisplayName} in the official PAIR UP OR LEAVE competition! Cast your votes now. ${IS_PLATFORM_SERVICE_FEE_ENABLED ? (isCouple ? "$2/vote base ($2.80 total for 1 vote w/ service fee)" : "$1/vote base ($1.80 total for 1 vote w/ service fee)") : (isCouple ? "$2/vote" : "$1/vote")}.`} />
         <meta property="og:url" content={`${SITE_URL}/candidate/${candidate.id}`} />
         <meta property="og:image" content={ogImageUrl} />
         <meta property="og:image:secure_url" content={ogImageUrl} />

@@ -77,5 +77,11 @@ jobs:
           deno-version: v2.x
 
       - name: Run Webhook Integration Test Suite
-        run: deno test --node-modules-dir=auto --allow-env supabase/functions/stripe-webhook/test.ts
+        run: deno test --no-check --node-modules-dir=auto --allow-env supabase/functions/stripe-webhook/test.ts
+
+      - name: Run Checkout Session (tiered fee) Test Suite
+        run: deno test --no-check --node-modules-dir=auto --allow-env --allow-read supabase/functions/create-checkout-session/test.ts
+
+      - name: Run Tiered Pricing Unit + Parity Tests
+        run: node scripts/test-tiered-pricing.mjs
 

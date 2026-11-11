@@ -1,4 +1,12 @@
 import { createClient } from "@supabase/supabase-js";
+import {
+  calculateVotePricingCents as sharedCalculateVotePricingCents,
+  TIERED_PRICING_VERSION,
+  LEGACY_PRICING_VERSION,
+  MIN_VOTES_PER_TRANSACTION,
+  MAX_VOTES_PER_TRANSACTION,
+  type VotePriceBreakdownCents,
+} from "./pricing";
 
 /**
  * Normalizes and sanitizes the Supabase URL.
@@ -90,21 +98,15 @@ export function getVotePriceCents(type?: CandidateType | string | null): number 
 export const IS_PLATFORM_SERVICE_FEE_ENABLED =
   import.meta.env.VITE_ENABLE_PLATFORM_SERVICE_FEE === "true";
 
-export const PRICING_VERSION = IS_PLATFORM_SERVICE_FEE_ENABLED ? "all_in_v1" : "legacy_base_v0";
+export const PRICING_VERSION = IS_PLATFORM_SERVICE_FEE_ENABLED ? TIERED_PRICING_VERSION : LEGACY_PRICING_VERSION;
 
-export interface VotePriceBreakdownCents {
-  unitPriceCents: 100 | 200;
-  voteQuantity: number;
-  subtotalCents: number;
-  serviceFeeCents: number;
-  taxCents: number;
-  totalAmountCents: number;
-}
+export type { VotePriceBreakdownCents };
 
 /**
- * Canonical integer-cent pricing calculation shared with create-checkout-session.
- * Base vote price: Individual = 100 cents ($1.00), Couple = 200 cents ($2.00).
- * Platform Service Fee: ceil((subtotalCents + 30) / (1 - 0.029)) - subtotalCents.
+ * Canonical integer-cent pricing calculation. Mirrors the server
+ * (supabase/functions/_shared/pricing.ts) exactly; the server remains the only
+ * authority and re-computes everything at checkout. Clamps quantity for the UI.
+ * Service fee: 80c/vote for 1-19 votes, 50c/vote for ALL votes at 20+.
  * The service fee NEVER increases voteQuantity.
  */
 export function calculateVotePricingCents(
@@ -113,23 +115,11 @@ export function calculateVotePricingCents(
   applyServiceFee = IS_PLATFORM_SERVICE_FEE_ENABLED,
   taxCents = 0
 ): VotePriceBreakdownCents {
-  const unitPriceCents: 100 | 200 = type === "couple" ? 200 : 100;
-  const safeQty = Math.max(1, Math.min(1000, Math.floor(voteQuantity || 1)));
-  const subtotalCents = safeQty * unitPriceCents;
-  const totalBeforeTaxCents = applyServiceFee
-    ? Math.ceil((subtotalCents + 30) / (1 - 0.029))
-    : subtotalCents;
-  const serviceFeeCents = totalBeforeTaxCents - subtotalCents;
-  const totalAmountCents = subtotalCents + serviceFeeCents + taxCents;
-
-  return {
-    unitPriceCents,
-    voteQuantity: safeQty,
-    subtotalCents,
-    serviceFeeCents,
-    taxCents,
-    totalAmountCents,
-  };
+  const safeQty = Math.max(
+    MIN_VOTES_PER_TRANSACTION,
+    Math.min(MAX_VOTES_PER_TRANSACTION, Math.floor(voteQuantity || 1))
+  );
+  return sharedCalculateVotePricingCents(type, safeQty, applyServiceFee, taxCents);
 }
 
 export function getSingleVoteAllInPriceFormatted(type?: CandidateType | string | null): string {
@@ -137,6 +127,8 @@ export function getSingleVoteAllInPriceFormatted(type?: CandidateType | string |
   return `$${(breakdown.totalAmountCents / 100).toFixed(2)}`;
 }
 
+export const SERVICE_FEE_TIER_SUMMARY =
+  "Service fee: $0.80/vote for 1\u201319 votes, $0.50/vote for all votes when you buy 20 or more.";
 /**
  * PublicCandidate is the ONLY candidate shape ever sent to public pages/components.
  * It MUST NOT include: paid_votes, bonus_votes, penalty_points, total_votes,

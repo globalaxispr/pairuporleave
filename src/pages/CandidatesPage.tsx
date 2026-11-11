@@ -93,9 +93,9 @@ export function CandidatesPage() {
     <>
       <Helmet>
         <title>Meet the Candidates & Cast Your Vote — Pair Up or Leave</title>
-        <meta name="description" content={IS_PLATFORM_SERVICE_FEE_ENABLED ? "Browse all candidates and couples on Pair Up or Leave and cast your votes. $1/vote base ($1.34 w/ service fee for 1 vote) for individuals, $2/vote base ($2.37 w/ service fee for 1 vote) for couples. No account required." : "Browse all candidates and couples on Pair Up or Leave and cast your votes. $1/vote for individuals, $2/vote for couples. No account required."} />
+        <meta name="description" content={IS_PLATFORM_SERVICE_FEE_ENABLED ? "Browse all candidates and couples on Pair Up or Leave and cast your votes. $1/vote base ($1.80 w/ service fee for 1 vote) for individuals, $2/vote base ($2.80 w/ service fee for 1 vote) for couples. No account required." : "Browse all candidates and couples on Pair Up or Leave and cast your votes. $1/vote for individuals, $2/vote for couples. No account required."} />
         <meta property="og:title" content="Meet the Candidates & Cast Your Vote — Pair Up or Leave" />
-        <meta property="og:description" content={IS_PLATFORM_SERVICE_FEE_ENABLED ? "Browse all candidates and couples on Pair Up or Leave and cast your votes. $1/vote base ($1.34 w/ fee) for individuals, $2/vote base ($2.37 w/ fee) for couples." : "Browse all candidates and couples on Pair Up or Leave and cast your votes. $1/vote for individuals, $2/vote for couples."} />
+        <meta property="og:description" content={IS_PLATFORM_SERVICE_FEE_ENABLED ? "Browse all candidates and couples on Pair Up or Leave and cast your votes. $1/vote base ($1.80 w/ fee) for individuals, $2/vote base ($2.80 w/ fee) for couples." : "Browse all candidates and couples on Pair Up or Leave and cast your votes. $1/vote for individuals, $2/vote for couples."} />
         <meta property="og:url" content={`${SITE_URL}/candidates`} />
         <meta property="og:image" content={`${SITE_URL}/og-image.jpg`} />
         <meta name="twitter:card" content="summary_large_image" />

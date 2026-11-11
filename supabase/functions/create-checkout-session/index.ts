@@ -1,5 +1,16 @@
 import Stripe from "npm:stripe@^17";
 import { createClient } from "npm:@supabase/supabase-js@^2";
+import {
+  calculateVotePricingCents,
+  isValidVoteQuantity,
+  TIERED_PRICING_VERSION,
+  LEGACY_PRICING_VERSION,
+  MIN_VOTES_PER_TRANSACTION,
+  MAX_VOTES_PER_TRANSACTION,
+  SERVICE_FEE_DISCOUNT_THRESHOLD_VOTES,
+  SERVICE_FEE_STANDARD_CENTS_PER_VOTE,
+  SERVICE_FEE_DISCOUNT_CENTS_PER_VOTE,
+} from "../_shared/pricing.ts";
 
 const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
 const stripe = stripeSecretKey
@@ -22,48 +33,7 @@ const supabaseAdmin = (supabaseUrl && supabaseAdminKey)
 // This does NOT limit total lifetime votes (business rule preserved).
 // It prevents absurdly large checkout requests.
 // ====================================================
-const MAX_VOTES_PER_TRANSACTION = 1000;
-const MIN_VOTES_PER_TRANSACTION = 1;
-const ALL_IN_PRICING_VERSION = "all_in_v1";
-
-export interface VotePriceBreakdownCents {
-  unitPriceCents: 100 | 200;
-  voteQuantity: number;
-  subtotalCents: number;
-  serviceFeeCents: number;
-  taxCents: number;
-  totalAmountCents: number;
-}
-
-/**
- * Authoritative integer-cent pricing calculation.
- * Base vote price: Individual = 100 cents ($1.00), Couple = 200 cents ($2.00).
- * Platform Service Fee (when enabled): ceil((subtotalCents + 30) / (1 - 0.029)) - subtotalCents.
- * Fee never increases vote_quantity.
- */
-export function calculateVotePricingCents(
-  candidateType: "individual" | "couple",
-  voteQuantity: number,
-  applyServiceFee: boolean,
-  taxCents = 0
-): VotePriceBreakdownCents {
-  const unitPriceCents: 100 | 200 = candidateType === "couple" ? 200 : 100;
-  const subtotalCents = voteQuantity * unitPriceCents;
-  const totalBeforeTaxCents = applyServiceFee
-    ? Math.ceil((subtotalCents + 30) / (1 - 0.029))
-    : subtotalCents;
-  const serviceFeeCents = totalBeforeTaxCents - subtotalCents;
-  const totalAmountCents = subtotalCents + serviceFeeCents + taxCents;
-
-  return {
-    unitPriceCents,
-    voteQuantity,
-    subtotalCents,
-    serviceFeeCents,
-    taxCents,
-    totalAmountCents,
-  };
-}
+// Vote quantity bounds and all pricing math live in ../_shared/pricing.ts (integer cents only).
 
 // Restrict CORS and redirect origin to the configured production domain.
 const ALLOWED_ORIGIN = Deno.env.get("SITE_URL") ?? "https://pairuporleave.com";
@@ -247,12 +217,7 @@ Deno.serve(async (req) => {
     }
 
     // Validate vote_quantity — server-side enforced bounds
-    if (
-      !vote_quantity ||
-      !Number.isInteger(vote_quantity) ||
-      vote_quantity < MIN_VOTES_PER_TRANSACTION ||
-      vote_quantity > MAX_VOTES_PER_TRANSACTION
-    ) {
+    if (!isValidVoteQuantity(vote_quantity)) {
       return new Response(
         JSON.stringify({
           error: `vote_quantity must be an integer between ${MIN_VOTES_PER_TRANSACTION} and ${MAX_VOTES_PER_TRANSACTION}`,
@@ -330,28 +295,44 @@ Deno.serve(async (req) => {
     // Individual base: 1 vote = $1.00 (100 cents)
     // Couple base:     1 vote = $2.00 (200 cents)
     //
-    // SAFETY REQUIREMENT: The backend MUST NOT charge mandatory platform
-    // service fees unless:
-    //   1. Server flag ENABLE_PLATFORM_SERVICE_FEE is not "false", AND
-    //   2. The request originates from the updated frontend that prominently
-    //      displays the mandatory all-in price breakdown (pricing_version === "all_in_v1").
+    // TIERED SERVICE FEE (pricing_version "tiered_v2"), integer cents, server-side only:
+    //   1-19 votes -> $0.80 per vote | 20+ votes -> $0.50 per vote on ALL votes.
+    // Threshold = quantity in THIS checkout only. The 20-vote total being lower than
+    // the 19-vote total is intentional and owner-approved.
+    //
+    // SAFETY: fees are only charged when the server flag ENABLE_PLATFORM_SERVICE_FEE
+    // is "true" (default off so this function can be deployed before the frontend).
+    // When enabled, the fee is ALWAYS applied: a client cannot opt out by sending an
+    // old/legacy pricing_version; such requests are rejected so a stale UI never
+    // shows one price and charges another. Client price fields are never trusted.
     // ====================================================
     const candidateType = (candidate.candidate_type as string) === "couple" ? "couple" : "individual";
-    // Default to "false" (disabled) until ENABLE_PLATFORM_SERVICE_FEE="true" is explicitly set in Step 4
     const serverFeeFlagEnabled =
       (Deno.env.get("ENABLE_PLATFORM_SERVICE_FEE") ?? "false").toLowerCase() === "true";
-    const clientDisclosedAllInPricing = pricing_version === ALL_IN_PRICING_VERSION;
-    const applyServiceFee = serverFeeFlagEnabled && clientDisclosedAllInPricing;
+
+    if (serverFeeFlagEnabled && pricing_version !== TIERED_PRICING_VERSION) {
+      return new Response(
+        JSON.stringify({
+          error:
+            "Pricing has been updated. Please refresh the page to see the current price and try again.",
+        }),
+        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    const applyServiceFee = serverFeeFlagEnabled;
 
     const pricing = calculateVotePricingCents(candidateType, vote_quantity, applyServiceFee, 0);
     const {
       unitPriceCents,
       subtotalCents,
+      serviceFeePerVoteCents,
       serviceFeeCents,
       taxCents,
       totalAmountCents,
+      discountTierApplied,
     } = pricing;
 
+    // client_total_cents is only a display-parity guard (never used to price).
     if (
       client_total_cents !== undefined &&
       (!Number.isInteger(client_total_cents) || client_total_cents !== totalAmountCents)
@@ -364,7 +345,6 @@ Deno.serve(async (req) => {
         { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-
     const candidateDisplayName = candidate.display_name || candidate.name;
     const origin = getTrustedOrigin(requestOrigin);
 
@@ -383,20 +363,23 @@ Deno.serve(async (req) => {
     ];
 
     if (serviceFeeCents > 0) {
+      // unit_amount x quantity == serviceFeeCents exactly (integer cents), so the
+      // Stripe total always equals subtotal + fee as shown in the UI.
       lineItems.push({
         price_data: {
           currency: "usd",
           product_data: {
-            name: "Platform Service Fee",
+            name: discountTierApplied
+              ? `Service Fee ($${(serviceFeePerVoteCents / 100).toFixed(2)}/vote · ${SERVICE_FEE_DISCOUNT_THRESHOLD_VOTES}+ vote discount applied)`
+              : `Service Fee ($${(serviceFeePerVoteCents / 100).toFixed(2)}/vote)`,
             description:
-              "Mandatory platform service fee (does not increase votes credited; not a government tax)",
+              `Service fee is $${(SERVICE_FEE_STANDARD_CENTS_PER_VOTE / 100).toFixed(2)}/vote for 1-${SERVICE_FEE_DISCOUNT_THRESHOLD_VOTES - 1} votes and $${(SERVICE_FEE_DISCOUNT_CENTS_PER_VOTE / 100).toFixed(2)}/vote for all votes at ${SERVICE_FEE_DISCOUNT_THRESHOLD_VOTES}+. Does not add votes; not a government tax.`,
           },
-          unit_amount: serviceFeeCents,
+          unit_amount: serviceFeePerVoteCents,
         },
-        quantity: 1,
+        quantity: vote_quantity,
       });
     }
-
     // Create Stripe Checkout Session — amount and pricing set entirely server-side
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
@@ -411,9 +394,11 @@ Deno.serve(async (req) => {
         vote_price: unitPriceCents.toString(),
         subtotal_cents: subtotalCents.toString(),
         service_fee_cents: serviceFeeCents.toString(),
+        service_fee_per_vote_cents: serviceFeePerVoteCents.toString(),
+        service_fee_discount_tier: discountTierApplied ? "true" : "false",
         tax_cents: taxCents.toString(),
         expected_amount_cents: totalAmountCents.toString(),
-        pricing_version: applyServiceFee ? ALL_IN_PRICING_VERSION : "legacy_base_v0",
+        pricing_version: applyServiceFee ? TIERED_PRICING_VERSION : LEGACY_PRICING_VERSION,
         competition_name: schedule?.name ?? "PAIR UP OR LEAVE",
         competition_end_time: schedule?.end_time ?? "",
       },

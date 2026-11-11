@@ -92,7 +92,7 @@ export function MobileStickyVote() {
                 {isVotingClosed
                   ? "Voting Period Concluded"
                   : IS_PLATFORM_SERVICE_FEE_ENABLED
-                  ? "1 Vote: $1 ($1.34 w/ fee) · Couples: $2 ($2.37 w/ fee)"
+                  ? "1 Vote: $1 ($1.80 w/ fee) · Couples: $2 ($2.80 w/ fee)"
                   : "1 Vote = $1 · Couples = $2"}
               </span>
             </div>
