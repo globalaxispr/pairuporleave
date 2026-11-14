@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Vote, TrendingUp, User, Eye } from "lucide-react";
 import { getVotePriceDollars, getSingleVoteAllInPriceFormatted, IS_PLATFORM_SERVICE_FEE_ENABLED, type PublicCandidate, getCandidateScore } from "@/lib/supabase";
-import { formatNumber } from "@/lib/utils";
 import { VoteModal } from "@/components/voting/VoteModal";
 import { useCompetitionSchedule } from "@/hooks/useCompetitionSchedule";
 import { CandidateShareButtons } from "@/components/candidates/CandidateShareButtons";
@@ -23,6 +22,14 @@ export function CandidateCard({ candidate, rank }: CandidateCardProps) {
   const isCouple = candidate.candidate_type === "couple";
   const pricePerVote = getVotePriceDollars(candidate.candidate_type);
   const singleVoteAllIn = getSingleVoteAllInPriceFormatted(candidate.candidate_type);
+  const voteScore = getCandidateScore(candidate);
+  const formattedVotes = voteScore.toLocaleString("en-US");
+  const voteCountFontSize =
+    formattedVotes.length > 9
+      ? "clamp(1.05rem, 3.8vw, 1.25rem)"
+      : formattedVotes.length > 7
+      ? "clamp(1.15rem, 4.2vw, 1.375rem)"
+      : "clamp(1.25rem, 4.8vw, 1.5rem)";
 
   const initials = candidate.name
     .split(" ")
@@ -82,6 +89,7 @@ export function CandidateCard({ candidate, rank }: CandidateCardProps) {
         className="candidate-card"
         style={{
           width: "100%",
+          height: "100%",
           background: "#FFFFFF",
           borderRadius: 16,
           border: "1px solid #F0DCE2",
@@ -403,19 +411,22 @@ export function CandidateCard({ candidate, rank }: CandidateCardProps) {
             padding: "1.125rem",
             display: "flex",
             flexDirection: "column",
-            gap: "0.75rem",
+            gap: "0.875rem",
             flex: 1,
+            minWidth: 0,
           }}
         >
           {/* Candidate Info */}
-          <div>
+          <div style={{ minWidth: 0 }}>
             <h3
               style={{
                 fontSize: "1.125rem",
                 fontWeight: 800,
                 color: "#24131A",
                 margin: 0,
-                lineHeight: 1.3,
+                lineHeight: 1.35,
+                overflowWrap: "break-word",
+                wordBreak: "break-word",
               }}
             >
               <Link
@@ -433,68 +444,127 @@ export function CandidateCard({ candidate, rank }: CandidateCardProps) {
                 display: "flex",
                 alignItems: "center",
                 gap: "0.375rem",
-                marginTop: "0.25rem",
-                fontSize: "0.875rem",
+                marginTop: "0.35rem",
+                fontSize: "0.8125rem",
                 color: "#6B6870",
+                minWidth: 0,
               }}
             >
-              <User size={13} color="#6B6870" />
-              <span>{candidate.position}</span>
+              <User size={13} color="#6B6870" style={{ flexShrink: 0 }} />
+              <span style={{ overflowWrap: "break-word", minWidth: 0 }}>
+                {candidate.position}
+              </span>
             </div>
           </div>
 
-          {/* Vote count banner */}
+          {/* Vote Information Area */}
           <div
             style={{
-              display: "flex",
+              display: "grid",
+              gridTemplateColumns: "minmax(0, 1fr) auto",
               alignItems: "center",
-              justifyContent: "space-between",
-              padding: "0.5rem 0.75rem",
+              gap: "0.75rem",
+              padding: "0.75rem 0.875rem",
               background: "#FFF8FA",
               borderRadius: 12,
               border: "1px solid #F0DCE2",
               marginTop: "auto",
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}>
-              <TrendingUp size={15} color="#E51B3E" />
-              <span style={{ fontSize: "0.75rem", fontWeight: 800, color: "#7A0C2E", textTransform: "uppercase" }}>
-                Total Votes
-              </span>
-              <span
+            {/* Left Side: TOTAL VOTES label + prominent tabular vote count */}
+            <div style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: "0.2rem" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
+                <TrendingUp size={13} color="#E51B3E" style={{ flexShrink: 0 }} />
+                <span
+                  style={{
+                    fontSize: "0.6875rem",
+                    fontWeight: 800,
+                    color: "#7A0C2E",
+                    letterSpacing: "0.06em",
+                    textTransform: "uppercase",
+                    lineHeight: 1.2,
+                  }}
+                >
+                  Total Votes
+                </span>
+              </div>
+              <div
                 style={{
-                  fontSize: "0.6875rem",
-                  background: isCouple ? "#FFE1E8" : "#FFF3F5",
-                  color: isCouple ? "#7A0C2E" : "#6B6870",
-                  fontWeight: 700,
-                  padding: "0.0625rem 0.375rem",
-                  borderRadius: 4,
-                  border: "1px solid #F0DCE2",
+                  fontWeight: 900,
+                  fontSize: voteCountFontSize,
+                  color: "#7A0C2E",
+                  lineHeight: 1.15,
+                  fontVariantNumeric: "tabular-nums",
+                  letterSpacing: "-0.02em",
+                  overflowWrap: "anywhere",
                 }}
               >
-                {IS_PLATFORM_SERVICE_FEE_ENABLED ? `$${pricePerVote}/vote (${singleVoteAllIn} w/ fee)` : `$${pricePerVote}/vote`}
-              </span>
+                {formattedVotes}
+              </div>
             </div>
-            <span
+
+            {/* Right Side: Base vote price + clear service fee indication */}
+            <div
               style={{
-                fontWeight: 900,
-                fontSize: "1.125rem",
-                color: "#7A0C2E",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "flex-end",
+                justifyContent: "center",
+                gap: "0.25rem",
+                paddingLeft: "0.75rem",
+                borderLeft: "1px solid #F0DCE2",
+                textAlign: "right",
+                flexShrink: 0,
               }}
+              title={
+                IS_PLATFORM_SERVICE_FEE_ENABLED
+                  ? `$${pricePerVote.toFixed(2)}/vote base (${singleVoteAllIn} total for 1 vote w/ service fee)`
+                  : `$${pricePerVote.toFixed(2)}/vote`
+              }
             >
-              {formatNumber(getCandidateScore(candidate))}
-            </span>
+              <span
+                style={{
+                  fontSize: "0.875rem",
+                  fontWeight: 800,
+                  color: "#24131A",
+                  lineHeight: 1.2,
+                  fontVariantNumeric: "tabular-nums",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                ${pricePerVote.toFixed(2)} / vote
+              </span>
+              {IS_PLATFORM_SERVICE_FEE_ENABLED && (
+                <span
+                  style={{
+                    fontSize: "0.6875rem",
+                    fontWeight: 700,
+                    color: "#7A0C2E",
+                    background: isCouple ? "#FFE1E8" : "#FFF3F5",
+                    border: "1px solid #F0DCE2",
+                    padding: "0.1rem 0.45rem",
+                    borderRadius: 6,
+                    lineHeight: 1.2,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  + service fee
+                </span>
+              )}
+            </div>
           </div>
 
-          {/* Action Buttons: Large Touch-Target Vote Button */}
-          <div style={{ display: "flex", gap: "0.5rem" }}>
+          {/* Action Buttons: Two Clean Rows */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", width: "100%" }}>
+            {/* Row 1: Primary Full-Width Vote Button */}
             <button
               className="btn-vote"
               disabled={isPaused || isVotingClosed}
               onClick={() => !isPaused && !isVotingClosed && setVoteModalOpen(true)}
               style={{
-                flex: 1,
+                width: "100%",
                 minHeight: 48,
+                borderRadius: 12,
                 justifyContent: "center",
                 fontSize: "1rem",
                 fontWeight: 800,
@@ -512,35 +582,52 @@ export function CandidateCard({ candidate, rank }: CandidateCardProps) {
               {isVotingClosed ? "VOTING CLOSED" : "VOTE NOW"}
             </button>
 
-            <Link
-              to={`/candidate/${candidate.id}`}
+            {/* Row 2: Secondary Actions (Clean 3-Column Grid) */}
+            <div
               style={{
-                width: 48,
-                minHeight: 48,
-                borderRadius: 12,
-                border: "1.5px solid #F0DCE2",
-                background: "#FFF8FA",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "#7A0C2E",
-                cursor: "pointer",
-                flexShrink: 0,
-                transition: "all 0.15s ease",
-                textDecoration: "none",
+                display: "grid",
+                gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                gap: "0.5rem",
+                width: "100%",
               }}
-              aria-label={`View details of ${candidate.name}`}
-              title="View Profile"
             >
-              <Eye size={18} />
-            </Link>
+              <Link
+                to={`/candidate/${candidate.id}`}
+                style={{
+                  width: "100%",
+                  minWidth: 0,
+                  minHeight: 42,
+                  padding: "0 0.5rem",
+                  borderRadius: 10,
+                  border: "1.5px solid #F0DCE2",
+                  background: "#FFF8FA",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "0.35rem",
+                  color: "#7A0C2E",
+                  fontSize: "0.75rem",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  transition: "all 0.15s ease",
+                  textDecoration: "none",
+                }}
+                aria-label={`View details of ${candidate.name}`}
+                title="View Profile"
+              >
+                <Eye size={15} style={{ flexShrink: 0 }} />
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  View
+                </span>
+              </Link>
 
-            <CandidateShareButtons
-              candidateId={candidate.id}
-              candidateName={candidate.display_name || candidate.name}
-              isCouple={isCouple}
-              compact
-            />
+              <CandidateShareButtons
+                candidateId={candidate.id}
+                candidateName={candidate.display_name || candidate.name}
+                isCouple={isCouple}
+                compact
+              />
+            </div>
           </div>
         </div>
       </article>

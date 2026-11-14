@@ -87,7 +87,7 @@ export function CandidateShareButtons({
 
   if (compact) {
     return (
-      <div style={{ display: "inline-flex", alignItems: "center", gap: "0.375rem" }}>
+      <>
         <button
           type="button"
           onClick={handleWhatsAppShare}
@@ -97,20 +97,28 @@ export function CandidateShareButtons({
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
-            width: 36,
-            height: 36,
+            gap: "0.35rem",
+            width: "100%",
+            minWidth: 0,
+            minHeight: 42,
+            padding: "0 0.5rem",
             borderRadius: 10,
             background: "#25D366",
             color: "#FFFFFF",
-            border: "none",
+            border: "1.5px solid #25D366",
+            fontSize: "0.75rem",
+            fontWeight: 700,
             cursor: "pointer",
-            boxShadow: "0 2px 6px rgba(37, 211, 102, 0.25)",
-            transition: "transform 0.15s ease",
+            boxShadow: "0 2px 6px rgba(37, 211, 102, 0.2)",
+            transition: "transform 0.15s ease, filter 0.15s ease",
           }}
-          onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.94)")}
+          onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.96)")}
           onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
         >
-          <WhatsAppIcon size={18} />
+          <WhatsAppIcon size={16} />
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            Share
+          </span>
         </button>
 
         <button
@@ -122,19 +130,27 @@ export function CandidateShareButtons({
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
-            width: 36,
-            height: 36,
+            gap: "0.35rem",
+            width: "100%",
+            minWidth: 0,
+            minHeight: 42,
+            padding: "0 0.5rem",
             borderRadius: 10,
             background: copied ? "#DCFCE7" : "#FFF8FA",
             color: copied ? "#15803D" : "#7A0C2E",
-            border: `1px solid ${copied ? "#86EFAC" : "#F0DCE2"}`,
+            border: `1.5px solid ${copied ? "#86EFAC" : "#F0DCE2"}`,
+            fontSize: "0.75rem",
+            fontWeight: 700,
             cursor: "pointer",
             transition: "all 0.15s ease",
           }}
         >
-          {copied ? <Check size={16} color="#15803D" /> : <Copy size={15} />}
+          {copied ? <Check size={15} color="#15803D" style={{ flexShrink: 0 }} /> : <Copy size={15} style={{ flexShrink: 0 }} />}
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {copied ? "Copied" : "Copy"}
+          </span>
         </button>
-      </div>
+      </>
     );
   }
 
