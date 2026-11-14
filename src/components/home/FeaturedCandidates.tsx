@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-import { ArrowRight, Vote } from "lucide-react";
-import { supabase, fetchCandidatesSafe, type PublicCandidate, applyRealtimeCandidateToCache } from "@/lib/supabase";
+import { Vote } from "lucide-react";
+import { supabase, fetchCandidatesSafe, getCandidateScore, type PublicCandidate, applyRealtimeCandidateToCache } from "@/lib/supabase";
 import { CandidateGrid } from "@/components/candidates/CandidateGrid";
 import { LoadingState } from "@/components/ui/LoadingState";
 
@@ -12,7 +11,7 @@ export function FeaturedCandidates() {
   useEffect(() => {
     async function load() {
       try {
-        const data = await fetchCandidatesSafe(6);
+        const data = await fetchCandidatesSafe();
         setCandidates(data);
       } finally {
         setLoading(false);
@@ -21,29 +20,37 @@ export function FeaturedCandidates() {
     void load();
   }, []);
 
-  // Real-time subscription for vote count updates
+  // Real-time subscription for candidate and vote count updates
   useEffect(() => {
     const channel = supabase
       .channel("featured-candidates")
       .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "candidates" },
+        { event: "*", schema: "public", table: "candidates" },
         (payload) => {
+          if (payload.eventType === "DELETE") {
+            const oldRow = payload.old as Record<string, unknown> | undefined;
+            if (oldRow?.id) {
+              setCandidates((prev) => prev.filter((c) => c.id !== oldRow.id));
+            }
+            return;
+          }
           if (!payload.new) return;
           const updated = applyRealtimeCandidateToCache(
             payload.new as Record<string, unknown>,
             payload.eventType
           );
           if (!updated) return;
-          setCandidates((prev) =>
-            updated.status !== "active"
-              ? prev.filter((c) => c.id !== updated.id)
-              : prev.map((c) =>
-                  c.id === updated.id
-                    ? { ...c, ...updated }
-                    : c
-                )
-          );
+          setCandidates((prev) => {
+            if (updated.status !== "active") {
+              return prev.filter((c) => c.id !== updated.id);
+            }
+            const exists = prev.some((c) => c.id === updated.id);
+            const next = exists
+              ? prev.map((c) => (c.id === updated.id ? { ...c, ...updated } : c))
+              : [...prev, updated];
+            return [...next].sort((a, b) => getCandidateScore(b) - getCandidateScore(a));
+          });
         }
       )
       .subscribe();
@@ -90,35 +97,12 @@ export function FeaturedCandidates() {
               Discover the candidates and choose who you want to support.
             </p>
           </div>
-          <Link
-            to="/candidates"
-            className="btn-outline"
-            style={{ textDecoration: "none" }}
-            aria-label="View all candidates"
-          >
-            View All
-            <ArrowRight size={16} />
-          </Link>
         </div>
 
         {loading ? (
           <LoadingState message="Loading candidates..." />
         ) : (
           <CandidateGrid candidates={candidates} />
-        )}
-
-        {!loading && candidates.length > 0 && (
-          <div style={{ textAlign: "center", marginTop: "2.5rem" }}>
-            <Link
-              to="/candidates"
-              className="btn-primary"
-              style={{ fontSize: "1rem", textDecoration: "none" }}
-            >
-              <Vote size={17} />
-              View All Candidates & Vote
-              <ArrowRight size={16} />
-            </Link>
-          </div>
         )}
       </div>
     </section>

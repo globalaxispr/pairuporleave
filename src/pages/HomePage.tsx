@@ -76,28 +76,28 @@ export function HomePage() {
         {/* 3. Live Ranking */}
         <LiveRankingSection />
 
-        {/* 4. Watch The Show (YouTube Live Broadcast / Episode) */}
-        <WatchTheShowSection />
-
-        {/* 5. Official YouTube Channel Memberships */}
-        <MembershipPlans />
-
-        {/* 6. Featured Candidates (1 card per row on mobile) */}
+        {/* 4. Meet the Candidates (All active candidates visible) */}
         <FeaturedCandidates />
 
-        {/* 4. Contest Stats */}
+        {/* 5. Watch The Show (YouTube Live Broadcast / Episode) */}
+        <WatchTheShowSection />
+
+        {/* 6. Official YouTube Channel Memberships */}
+        <MembershipPlans />
+
+        {/* 7. Contest Stats */}
         <StatsSection />
 
-        {/* 5. How It Works */}
+        {/* 8. How It Works */}
         <HowItWorksSection />
 
-        {/* 6. Results Preview */}
+        {/* 9. Results Preview */}
         <LiveResultsPreview />
 
-        {/* 7. Why Vote */}
+        {/* 10. Why Vote */}
         <WhyVoteSection />
 
-        {/* 8. Final CTA */}
+        {/* 11. Final CTA */}
         <FinalCTASection />
       </main>
     </>

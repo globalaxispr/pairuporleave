@@ -242,7 +242,35 @@ export function Footer() {
           }}
           className="sm:flex-row"
         >
-          <div>© {currentYear} Pair Up or Leave. All rights reserved.</div>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "0.25rem",
+            }}
+            className="items-center sm:items-start"
+          >
+            <div>© {currentYear} Pair Up or Leave. All rights reserved.</div>
+            <div style={{ fontSize: "0.8125rem", color: "rgba(255, 225, 232, 0.75)" }}>
+              Developed by{" "}
+              <a
+                href="https://wa.me/5549991832903"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  color: "#FFE1E8",
+                  textDecoration: "underline",
+                  textUnderlineOffset: "3px",
+                  fontWeight: 600,
+                  transition: "color 0.15s ease",
+                }}
+                onMouseEnter={(e) => { (e.target as HTMLElement).style.color = "#FFFFFF"; }}
+                onMouseLeave={(e) => { (e.target as HTMLElement).style.color = "#FFE1E8"; }}
+              >
+                Johnny Frantz T Rene
+              </a>
+            </div>
+          </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: "1.5rem", flexWrap: "wrap" }}>
             <Link
