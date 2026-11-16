@@ -1,8 +1,13 @@
+import Stripe from "npm:stripe@^17";
 import { createClient } from "npm:@supabase/supabase-js@^2";
+import { createVerifyPaymentHandler } from "./handler.ts";
+
+const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
+const stripe = stripeSecretKey
+  ? new Stripe(stripeSecretKey, { apiVersion: "2024-06-20" as Stripe.StripeConfig["apiVersion"] })
+  : null;
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-
 const supabaseAdminKey =
   Deno.env.get("SUPABASE_ADMIN_SECRET_KEY") ??
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ??
@@ -71,6 +76,10 @@ function isRateLimited(ip: string): boolean {
   return false;
 }
 
+const verifyHandler = supabaseAdmin
+  ? createVerifyPaymentHandler({ supabaseAdmin, stripe })
+  : null;
+
 Deno.serve(async (req) => {
   const requestOrigin = req.headers.get("origin");
   const corsHeaders = getCorsHeaders(requestOrigin);
@@ -86,7 +95,7 @@ Deno.serve(async (req) => {
     );
   }
 
-  if (!supabaseAdmin) {
+  if (!supabaseAdmin || !verifyHandler) {
     console.error("verify-payment: Supabase credentials missing in Edge Function environment");
     return new Response(
       JSON.stringify({ error: "Service unavailable" }),
@@ -118,99 +127,12 @@ Deno.serve(async (req) => {
     const url = new URL(req.url);
     const sessionId = url.searchParams.get("session_id");
 
-    if (!sessionId) {
-      return new Response(
-        JSON.stringify({ error: "session_id parameter is required" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    const { httpStatus, body } = await verifyHandler.verifyPaymentSession(sessionId);
 
-    // Basic sanity check on session_id format (Stripe session IDs: cs_test_... or cs_live_...)
-    if (sessionId.length > 256 || !/^cs_[a-zA-Z0-9_]+$/.test(sessionId)) {
-      return new Response(
-        JSON.stringify({ error: "Invalid session_id format" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Look up payment by Stripe session ID
-    const { data: payment, error } = await supabaseAdmin
-      .from("payments")
-      .select(`
-        id,
-        status,
-        vote_quantity,
-        vote_price,
-        candidate_type,
-        subtotal_amount,
-        service_fee_amount,
-        tax_amount,
-        amount,
-        currency,
-        candidate_id,
-        candidates (
-          name,
-          display_name,
-          category,
-          position,
-          candidate_type
-        )
-      `)
-      .eq("stripe_session_id", sessionId)
-      .single();
-
-    if (error || !payment) {
-      return new Response(
-        JSON.stringify({ error: "Payment not found" }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Safe public fields — never expose internal IDs, ledger, or Stripe keys
-    const candidate = (payment as {
-      candidates?: {
-        name: string;
-        display_name?: string | null;
-        category: string;
-        position: string;
-        candidate_type?: string | null;
-      } | null;
-    }).candidates;
-
-    const candType =
-      (payment as { candidate_type?: string | null }).candidate_type ??
-      candidate?.candidate_type ??
-      "individual";
-    const unitPriceCents =
-      (payment as { vote_price?: number | null }).vote_price ??
-      (candType === "couple" ? 200 : 100);
-    const subtotalAmount =
-      (payment as { subtotal_amount?: number | null }).subtotal_amount ??
-      payment.vote_quantity * unitPriceCents;
-    const serviceFeeAmount =
-      (payment as { service_fee_amount?: number | null }).service_fee_amount ??
-      Math.max(0, payment.amount - subtotalAmount);
-    const taxAmount =
-      (payment as { tax_amount?: number | null }).tax_amount ?? 0;
-
-    return new Response(
-      JSON.stringify({
-        status: payment.status,
-        vote_quantity: payment.vote_quantity,
-        vote_price: unitPriceCents,
-        subtotal_amount: subtotalAmount,
-        service_fee_amount: serviceFeeAmount,
-        tax_amount: taxAmount,
-        amount: payment.amount,
-        currency: payment.currency,
-        candidate_name: candidate?.display_name || candidate?.name || "Unknown",
-        candidate_category: candidate?.category ?? "",
-      }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
+    return new Response(JSON.stringify(body), {
+      status: httpStatus,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   } catch (err) {
     console.error("verify-payment error:", (err as Error).message);
     return new Response(

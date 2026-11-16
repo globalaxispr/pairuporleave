@@ -1,12 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
-import { CheckCircle, Vote, Loader2, AlertCircle } from "lucide-react";
+import { CheckCircle, Vote, Loader2, AlertCircle, RefreshCw } from "lucide-react";
 import { formatNumber, formatCurrency } from "@/lib/utils";
 import { supabaseUrl, supabaseAnonKey, invalidateCandidatesCache } from "@/lib/supabase";
 
 interface PaymentDetails {
   status: string;
+  votes_credited?: boolean;
+  recovered?: boolean;
   candidate_name: string;
   candidate_category: string;
   vote_quantity: number;
@@ -22,7 +24,40 @@ export function VoteSuccessPage() {
   const sessionId = params.get("session_id");
   const [details, setDetails] = useState<PaymentDetails | null>(null);
   const [loading, setLoading] = useState(true);
+  const [rechecking, setRechecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const verifySession = useCallback(async (isManualRecheck = false): Promise<PaymentDetails | null> => {
+    if (!sessionId) return null;
+    if (isManualRecheck) setRechecking(true);
+    invalidateCandidatesCache();
+
+    try {
+      const resp = await fetch(
+        `${supabaseUrl}/functions/v1/verify-payment?session_id=${encodeURIComponent(sessionId)}`,
+        {
+          headers: {
+            apikey: supabaseAnonKey,
+            Authorization: `Bearer ${supabaseAnonKey}`,
+          },
+        }
+      );
+      const data = (await resp.json()) as PaymentDetails & { error?: string; message?: string };
+      if (!resp.ok || data.error) {
+        throw new Error(data.error || data.message || "Could not verify payment.");
+      }
+      invalidateCandidatesCache();
+      setDetails(data);
+      setError(null);
+      return data;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Payment verification failed.");
+      return null;
+    } finally {
+      setLoading(false);
+      if (isManualRecheck) setRechecking(false);
+    }
+  }, [sessionId]);
 
   useEffect(() => {
     if (!sessionId) {
@@ -31,33 +66,34 @@ export function VoteSuccessPage() {
       return;
     }
 
-    async function verify() {
-      invalidateCandidatesCache();
-      try {
-        const resp = await fetch(
-          `${supabaseUrl}/functions/v1/verify-payment?session_id=${encodeURIComponent(sessionId!)}`,
-          {
-            headers: {
-              "apikey": supabaseAnonKey,
-              Authorization: `Bearer ${supabaseAnonKey}`,
-            },
-          }
-        );
-        const data = (await resp.json()) as PaymentDetails & { error?: string; message?: string };
-        if (!resp.ok || data.error) {
-          throw new Error(data.error || data.message || "Could not verify payment.");
+    let cancelled = false;
+    let timerId: ReturnType<typeof setTimeout> | null = null;
+
+    async function runWithBoundedRetries() {
+      const firstResult = await verifySession(false);
+      if (cancelled || !firstResult || firstResult.status === "paid") return;
+
+      // Bounded automatic re-checks if payment is still pending (respects 5s server cooldown)
+      const retryDelaysMs = [5500, 6500];
+      for (const delay of retryDelaysMs) {
+        await new Promise<void>((resolve) => {
+          timerId = setTimeout(resolve, delay);
+        });
+        if (cancelled) return;
+        const nextResult = await verifySession(false);
+        if (cancelled || !nextResult || nextResult.status === "paid" || nextResult.status === "failed") {
+          return;
         }
-        invalidateCandidatesCache();
-        setDetails(data);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Payment verification failed.");
-      } finally {
-        setLoading(false);
       }
     }
 
-    void verify();
-  }, [sessionId]);
+    void runWithBoundedRetries();
+
+    return () => {
+      cancelled = true;
+      if (timerId) clearTimeout(timerId);
+    };
+  }, [sessionId, verifySession]);
 
   return (
     <>
@@ -198,10 +234,29 @@ export function VoteSuccessPage() {
                 <AlertCircle size={36} color="#D97706" />
               </div>
               <h1 style={{ fontSize: "1.5rem", fontWeight: 800, color: "#111827", margin: 0 }}>Payment Pending</h1>
-              <p style={{ color: "#6B7280", fontSize: "0.9375rem", margin: 0 }}>Your payment is still being processed. Votes will be added once confirmed.</p>
-              <Link to="/candidates" className="btn-primary" style={{ marginTop: "0.5rem", textDecoration: "none" }}>
+              <p style={{ color: "#6B7280", fontSize: "0.9375rem", margin: 0 }}>
+                Your payment is still being confirmed. Your votes will be added automatically as soon as Stripe completes verification.
+              </p>
+              <button
+                type="button"
+                onClick={() => void verifySession(true)}
+                disabled={rechecking}
+                className="btn-outline"
+                style={{
+                  marginTop: "0.25rem",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  cursor: rechecking ? "not-allowed" : "pointer",
+                }}
+              >
+                <RefreshCw size={15} style={rechecking ? { animation: "spin 1s linear infinite" } : undefined} />
+                {rechecking ? "Checking Status..." : "Check Status Again"}
+              </button>
+              <Link to="/candidates" className="btn-primary" style={{ marginTop: "0.25rem", textDecoration: "none" }}>
                 Back to Candidates
               </Link>
+              <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
             </div>
           )}
         </div>

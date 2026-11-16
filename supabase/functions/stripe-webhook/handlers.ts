@@ -1,14 +1,11 @@
 // Stripe Webhook Handlers – dependency injected version
-// This file contains the core business‑logic for handling Stripe checkout events
-// and safely reconciling paid-but-uncredited payments using trusted server-side Stripe data.
-// It does **not** start a Deno.serve server and can be imported safely in unit tests.
+// Contains core business logic for handling Stripe checkout events,
+// server-verified payment recovery, and refund/dispute recording.
+// Can be imported safely in both Deno and Node test suites.
 
-import Stripe from "npm:stripe@^17";
-import type { SupabaseClient } from "npm:@supabase/supabase-js@^2"; // type only
+import type Stripe from "npm:stripe@^17";
+import type { SupabaseClient } from "npm:@supabase/supabase-js@^2";
 
-// ---------------------------------------------------------------------------
-// Constants – same values as in the original index.ts
-// ---------------------------------------------------------------------------
 const MAX_VOTES_PER_TRANSACTION = 1000;
 const MIN_VOTES_PER_TRANSACTION = 1;
 
@@ -24,7 +21,7 @@ export interface StripeSessionVerifier {
 }
 
 function extractPaymentIntentId(
-  rawPaymentIntent: Stripe.Checkout.Session["payment_intent"]
+  rawPaymentIntent: Stripe.Checkout.Session["payment_intent"] | Stripe.Charge["payment_intent"] | Stripe.Dispute["payment_intent"]
 ): string {
   if (typeof rawPaymentIntent === "string") {
     return rawPaymentIntent.trim();
@@ -38,17 +35,51 @@ function extractPaymentIntentId(
   return "";
 }
 
-// ---------------------------------------------------------------------------
-// Factory that receives the runtime dependencies and returns the handlers.
-// ---------------------------------------------------------------------------
+function extractChargeId(
+  rawCharge: Stripe.Dispute["charge"] | string | null | undefined
+): string {
+  if (typeof rawCharge === "string") {
+    return rawCharge.trim();
+  }
+  if (
+    rawCharge &&
+    typeof (rawCharge as { id?: unknown }).id === "string"
+  ) {
+    return (rawCharge as { id: string }).id.trim();
+  }
+  return "";
+}
+
 export function createHandlers(params: {
-  supabaseAdmin: SupabaseClient | null; // runtime Supabase admin client (or mock)
-  stripe?: StripeSessionVerifier | null; // server-side Stripe client for reconciliation verification
+  supabaseAdmin: SupabaseClient | null;
+  stripe?: StripeSessionVerifier | null;
 }) {
   const { supabaseAdmin, stripe } = params;
 
-  async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
+  async function tryFlagManualReview(
+    paymentId: string | undefined,
+    reason: string,
+    source: string
+  ): Promise<void> {
+    if (!supabaseAdmin || !paymentId) return;
+    try {
+      await supabaseAdmin.rpc("flag_payment_manual_review", {
+        p_payment_id: paymentId,
+        p_reason: reason,
+        p_source: source,
+        p_details: {},
+      });
+    } catch {
+      // Best-effort helper; ignore if mock client in unit test only implements confirm_stripe_payment
+    }
+  }
+
+  async function handleCheckoutCompleted(
+    session: Stripe.Checkout.Session,
+    options?: { source?: string; forceServerVerification?: boolean }
+  ) {
     if (!supabaseAdmin) return;
+    const source = options?.source ?? "stripe_webhook";
 
     const stripeSessionId = session.id;
     if (!stripeSessionId || !/^cs_[A-Za-z0-9_]+$/.test(stripeSessionId)) {
@@ -67,7 +98,7 @@ export function createHandlers(params: {
     const { data: existingPayment, error: fetchErr } = await supabaseAdmin
       .from("payments")
       .select(
-        "id, stripe_session_id, status, amount, subtotal_amount, service_fee_amount, tax_amount, currency, candidate_id, vote_quantity, candidate_type, vote_price, created_at, stripe_payment_intent_id"
+        "id, stripe_session_id, status, amount, subtotal_amount, service_fee_amount, tax_amount, currency, candidate_id, vote_quantity, candidate_type, vote_price, created_at, stripe_payment_intent_id, refund_status, dispute_status"
       )
       .eq("stripe_session_id", stripeSessionId)
       .maybeSingle();
@@ -86,33 +117,24 @@ export function createHandlers(params: {
       !existingPayment.stripe_session_id ||
       existingPayment.stripe_session_id !== stripeSessionId
     ) {
-      console.error(
-        `MANUAL REVIEW REQUIRED — CRITICAL: Stripe session ID mismatch. Event reported '${stripeSessionId}', DB recorded '${existingPayment.stripe_session_id}'.`
-      );
-      throw new Error(
-        `Payment integrity mismatch: Stripe session '${stripeSessionId}' does not match recorded session '${existingPayment.stripe_session_id}'.`
-      );
+      const msg = `Payment integrity mismatch: Stripe session '${stripeSessionId}' does not match recorded session '${existingPayment.stripe_session_id}'.`;
+      await tryFlagManualReview(existingPayment.id, msg, source);
+      throw new Error(msg);
     }
 
     if (
       session.metadata?.payment_id &&
       session.metadata.payment_id !== existingPayment.id
     ) {
-      console.error(
-        `MANUAL REVIEW REQUIRED — CRITICAL: Metadata payment_id '${session.metadata.payment_id}' does not match DB payment '${existingPayment.id}' for session '${stripeSessionId}'.`
-      );
-      throw new Error(
-        `Payment integrity mismatch: session metadata payment_id '${session.metadata.payment_id}' does not match recorded payment '${existingPayment.id}'.`
-      );
+      const msg = `Payment integrity mismatch: session metadata payment_id '${session.metadata.payment_id}' does not match recorded payment '${existingPayment.id}'.`;
+      await tryFlagManualReview(existingPayment.id, msg, source);
+      throw new Error(msg);
     }
 
     // 2.5. EXTRACT & VALIDATE STRIPE PAYMENT INTENT ID
     let paymentIntentId = extractPaymentIntentId(session.payment_intent);
 
     if (!paymentIntentId || !/^pi_[A-Za-z0-9_]+$/.test(paymentIntentId)) {
-      console.error(
-        `CRITICAL: Missing or invalid PaymentIntent ID on paid session ${stripeSessionId}: '${String(session.payment_intent)}'`
-      );
       throw new Error(`Missing or invalid Stripe PaymentIntent for paid session ${stripeSessionId}.`);
     }
 
@@ -122,17 +144,13 @@ export function createHandlers(params: {
         : null;
 
     if (recordedPaymentIntentId && recordedPaymentIntentId !== paymentIntentId) {
-      console.error(
-        `MANUAL REVIEW REQUIRED — CRITICAL: PaymentIntent mismatch for session ${stripeSessionId}. ` +
-          `Stripe event reported '${paymentIntentId}', DB recorded '${recordedPaymentIntentId}'.`
-      );
-      throw new Error(
-        `Payment integrity mismatch: Stripe PaymentIntent '${paymentIntentId}' does not match recorded PaymentIntent '${recordedPaymentIntentId}'.`
-      );
+      const msg = `Payment integrity mismatch: Stripe PaymentIntent '${paymentIntentId}' does not match recorded PaymentIntent '${recordedPaymentIntentId}'.`;
+      await tryFlagManualReview(existingPayment.id, msg, source);
+      throw new Error(msg);
     }
 
     // 3. INSPECT CREDIT STATE & DETERMINE NORMAL VS. RECOVERY PATH
-    let isRecovery = false;
+    let isRecovery = Boolean(options?.forceServerVerification);
     let effectiveSession: Stripe.Checkout.Session = session;
 
     if (existingPayment.status === "paid") {
@@ -151,12 +169,9 @@ export function createHandlers(params: {
           existingVote.candidate_id !== existingPayment.candidate_id ||
           existingVote.quantity !== existingPayment.vote_quantity
         ) {
-          console.error(
-            `MANUAL REVIEW REQUIRED — CRITICAL: Existing vote record for paid payment ${existingPayment.id} mismatches candidate or quantity.`
-          );
-          throw new Error(
-            `Reconciliation conflict requiring manual review: existing vote record for payment ${existingPayment.id} does not match payment candidate or quantity.`
-          );
+          const msg = `Reconciliation conflict requiring manual review: existing vote record for payment ${existingPayment.id} does not match payment candidate or quantity.`;
+          await tryFlagManualReview(existingPayment.id, msg, source);
+          throw new Error(msg);
         }
         console.log("Payment already marked as paid and credited for session:", stripeSessionId);
         return; // Already processed and credited — idempotent exit
@@ -178,12 +193,9 @@ export function createHandlers(params: {
       }
 
       if (existingVote) {
-        console.error(
-          `MANUAL REVIEW REQUIRED — CRITICAL: Payment ${existingPayment.id} is marked 'failed' but already has a vote record (${existingVote.id}).`
-        );
-        throw new Error(
-          `Reconciliation conflict requiring manual review: payment ${existingPayment.id} has local status 'failed' but already has an existing vote record.`
-        );
+        const msg = `Reconciliation conflict requiring manual review: payment ${existingPayment.id} has local status 'failed' but already has an existing vote record.`;
+        await tryFlagManualReview(existingPayment.id, msg, source);
+        throw new Error(msg);
       }
 
       console.warn(
@@ -191,21 +203,15 @@ export function createHandlers(params: {
       );
       isRecovery = true;
     } else if (existingPayment.status !== "pending") {
-      console.error(
-        `MANUAL REVIEW REQUIRED — Payment ${existingPayment.id} in non-recoverable status '${existingPayment.status}' for session: ${stripeSessionId}.`
-      );
-      throw new Error(
-        `Reconciliation conflict requiring manual review: payment ${existingPayment.id} is in status '${existingPayment.status}'.`
-      );
+      const msg = `Reconciliation conflict requiring manual review: payment ${existingPayment.id} is in status '${existingPayment.status}'.`;
+      await tryFlagManualReview(existingPayment.id, msg, source);
+      throw new Error(msg);
     }
 
     // 3.5. MANDATORY SERVER-SIDE STRIPE VERIFICATION FOR RECOVERY OF FAILED / UNCREDITED PAYMENTS
-    //      Never blindly convert a failed payment into paid without querying trusted Stripe server state.
+    //      Never convert a failed or uncredited payment into credited votes without querying trusted Stripe server state.
     if (isRecovery) {
       if (!stripe) {
-        console.error(
-          `MANUAL REVIEW REQUIRED — Cannot reconcile payment ${existingPayment.id} (status '${existingPayment.status}') without server-side Stripe client.`
-        );
         throw new Error(
           `Reconciliation requires server-side Stripe verification for payment ${existingPayment.id} in status '${existingPayment.status}'.`
         );
@@ -216,18 +222,12 @@ export function createHandlers(params: {
       });
 
       if (!verifiedSession || verifiedSession.id !== stripeSessionId || verifiedSession.id !== existingPayment.stripe_session_id) {
-        console.error(
-          `MANUAL REVIEW REQUIRED — Server-side Stripe session ID mismatch during reconciliation of payment ${existingPayment.id}.`
-        );
-        throw new Error(
-          `Reconciliation conflict requiring manual review: server-side Stripe session ID mismatch for payment ${existingPayment.id}.`
-        );
+        const msg = `Reconciliation conflict requiring manual review: server-side Stripe session ID mismatch for payment ${existingPayment.id}.`;
+        await tryFlagManualReview(existingPayment.id, msg, source);
+        throw new Error(msg);
       }
 
       if (verifiedSession.payment_status !== "paid") {
-        console.error(
-          `RECONCILIATION REJECTED — Server-side Stripe check shows session ${stripeSessionId} has payment_status '${verifiedSession.payment_status}', not 'paid'. Leaving status '${existingPayment.status}'.`
-        );
         throw new Error(
           `Reconciliation rejected: server-side Stripe session ${stripeSessionId} has payment_status '${verifiedSession.payment_status}', expected 'paid'.`
         );
@@ -235,32 +235,23 @@ export function createHandlers(params: {
 
       const verifiedPiId = extractPaymentIntentId(verifiedSession.payment_intent);
       if (!verifiedPiId || !/^pi_[A-Za-z0-9_]+$/.test(verifiedPiId) || verifiedPiId !== paymentIntentId) {
-        console.error(
-          `MANUAL REVIEW REQUIRED — Server-side Stripe PaymentIntent '${verifiedPiId}' does not match event PaymentIntent '${paymentIntentId}' for session ${stripeSessionId}.`
-        );
-        throw new Error(
-          `Reconciliation conflict requiring manual review: server-side PaymentIntent '${verifiedPiId}' does not match '${paymentIntentId}'.`
-        );
+        const msg = `Reconciliation conflict requiring manual review: server-side PaymentIntent '${verifiedPiId}' does not match '${paymentIntentId}'.`;
+        await tryFlagManualReview(existingPayment.id, msg, source);
+        throw new Error(msg);
       }
 
       if (recordedPaymentIntentId && verifiedPiId !== recordedPaymentIntentId) {
-        console.error(
-          `MANUAL REVIEW REQUIRED — Server-side Stripe PaymentIntent '${verifiedPiId}' conflicts with DB recorded PaymentIntent '${recordedPaymentIntentId}'.`
-        );
-        throw new Error(
-          `Payment integrity mismatch: server-side Stripe PaymentIntent '${verifiedPiId}' does not match recorded PaymentIntent '${recordedPaymentIntentId}'.`
-        );
+        const msg = `Payment integrity mismatch: server-side Stripe PaymentIntent '${verifiedPiId}' does not match recorded PaymentIntent '${recordedPaymentIntentId}'.`;
+        await tryFlagManualReview(existingPayment.id, msg, source);
+        throw new Error(msg);
       }
 
       if (
         verifiedSession.payment_intent &&
         typeof verifiedSession.payment_intent === "object"
       ) {
-        const piObj = verifiedSession.payment_intent as Stripe.PaymentIntent;
+        const piObj = verifiedSession.payment_intent as Stripe.PaymentIntent & { amount_refunded?: number };
         if (piObj.status && piObj.status !== "succeeded") {
-          console.error(
-            `RECONCILIATION REJECTED — Server-side PaymentIntent ${verifiedPiId} has status '${piObj.status}', expected 'succeeded'.`
-          );
           throw new Error(
             `Reconciliation rejected: server-side PaymentIntent ${verifiedPiId} has status '${piObj.status}', expected 'succeeded'.`
           );
@@ -269,23 +260,22 @@ export function createHandlers(params: {
           typeof piObj.amount_received === "number" &&
           piObj.amount_received !== existingPayment.amount
         ) {
-          console.error(
-            `MANUAL REVIEW REQUIRED — Server-side PaymentIntent amount_received (${piObj.amount_received}) does not match DB amount (${existingPayment.amount}).`
-          );
-          throw new Error(
-            `Reconciliation conflict requiring manual review: PaymentIntent amount_received ${piObj.amount_received} does not match DB amount ${existingPayment.amount}.`
-          );
+          const msg = `Reconciliation conflict requiring manual review: PaymentIntent amount_received ${piObj.amount_received} does not match DB amount ${existingPayment.amount}.`;
+          await tryFlagManualReview(existingPayment.id, msg, source);
+          throw new Error(msg);
         }
         if (
           typeof piObj.currency === "string" &&
           piObj.currency.toLowerCase() !== (existingPayment.currency ?? "usd").toLowerCase()
         ) {
-          console.error(
-            `MANUAL REVIEW REQUIRED — Server-side PaymentIntent currency ('${piObj.currency}') does not match DB currency ('${existingPayment.currency}').`
-          );
-          throw new Error(
-            `Reconciliation conflict requiring manual review: PaymentIntent currency '${piObj.currency}' does not match DB currency '${existingPayment.currency}'.`
-          );
+          const msg = `Reconciliation conflict requiring manual review: PaymentIntent currency '${piObj.currency}' does not match DB currency '${existingPayment.currency}'.`;
+          await tryFlagManualReview(existingPayment.id, msg, source);
+          throw new Error(msg);
+        }
+        if (typeof piObj.amount_refunded === "number" && piObj.amount_refunded > 0) {
+          const msg = `Reconciliation conflict requiring manual review: PaymentIntent ${verifiedPiId} has amount_refunded=${piObj.amount_refunded}.`;
+          await tryFlagManualReview(existingPayment.id, msg, source);
+          throw new Error(msg);
         }
       }
 
@@ -293,9 +283,9 @@ export function createHandlers(params: {
         verifiedSession.metadata?.payment_id &&
         verifiedSession.metadata.payment_id !== existingPayment.id
       ) {
-        throw new Error(
-          `Reconciliation conflict requiring manual review: server-side metadata payment_id '${verifiedSession.metadata.payment_id}' does not match DB payment '${existingPayment.id}'.`
-        );
+        const msg = `Reconciliation conflict requiring manual review: server-side metadata payment_id '${verifiedSession.metadata.payment_id}' does not match DB payment '${existingPayment.id}'.`;
+        await tryFlagManualReview(existingPayment.id, msg, source);
+        throw new Error(msg);
       }
 
       effectiveSession = verifiedSession;
@@ -306,13 +296,10 @@ export function createHandlers(params: {
     const stripeCurrency = (effectiveSession.currency ?? "").toLowerCase();
     const expectedCurrency = (existingPayment.currency ?? "usd").toLowerCase();
     if (stripeCurrency !== expectedCurrency) {
-      console.error(
-        `CRITICAL: Currency mismatch for session ${stripeSessionId}. Stripe reported '${stripeCurrency}', DB expected '${expectedCurrency}'.`
-      );
       if (isRecovery) {
-        throw new Error(
-          `Reconciliation conflict requiring manual review: currency mismatch ('${stripeCurrency}' vs '${expectedCurrency}') for payment ${existingPayment.id}.`
-        );
+        const msg = `Reconciliation conflict requiring manual review: currency mismatch ('${stripeCurrency}' vs '${expectedCurrency}') for payment ${existingPayment.id}.`;
+        await tryFlagManualReview(existingPayment.id, msg, source);
+        throw new Error(msg);
       }
       await supabaseAdmin
         .from("payments")
@@ -324,14 +311,10 @@ export function createHandlers(params: {
     const stripeAmountTotal = effectiveSession.amount_total ?? 0;
     const dbStoredAmount = existingPayment.amount;
     if (stripeAmountTotal !== dbStoredAmount) {
-      console.error(
-        `CRITICAL: Amount mismatch for session ${stripeSessionId}. ` +
-          `Stripe reported ${stripeAmountTotal} cents; DB stored ${dbStoredAmount} cents. Refusing vote creation.`
-      );
       if (isRecovery) {
-        throw new Error(
-          `Reconciliation conflict requiring manual review: amount mismatch (Stripe ${stripeAmountTotal} vs DB ${dbStoredAmount}) for payment ${existingPayment.id}.`
-        );
+        const msg = `Reconciliation conflict requiring manual review: amount mismatch (Stripe ${stripeAmountTotal} vs DB ${dbStoredAmount}) for payment ${existingPayment.id}.`;
+        await tryFlagManualReview(existingPayment.id, msg, source);
+        throw new Error(msg);
       }
       await supabaseAdmin
         .from("payments")
@@ -364,15 +347,10 @@ export function createHandlers(params: {
       recordedTax < 0 ||
       dbStoredAmount !== recordedSubtotal + recordedServiceFee + recordedTax
     ) {
-      console.error(
-        `CRITICAL: Payment accounting invariant mismatch for session ${stripeSessionId}: ` +
-          `amount=${dbStoredAmount}, subtotal=${recordedSubtotal} (expected ${expectedSubtotal}), ` +
-          `service_fee=${recordedServiceFee}, tax=${recordedTax}. Refusing vote creation.`
-      );
       if (isRecovery) {
-        throw new Error(
-          `Reconciliation conflict requiring manual review: payment accounting invariant mismatch for payment ${existingPayment.id}.`
-        );
+        const msg = `Reconciliation conflict requiring manual review: payment accounting invariant mismatch for payment ${existingPayment.id}.`;
+        await tryFlagManualReview(existingPayment.id, msg, source);
+        throw new Error(msg);
       }
       await supabaseAdmin
         .from("payments")
@@ -384,11 +362,10 @@ export function createHandlers(params: {
     // 5. CONFIRM CANDIDATE FROM TRUSTED DATABASE RECORDS
     const candidateId = existingPayment.candidate_id;
     if (!candidateId) {
-      console.error(`Payment ${existingPayment.id} has no associated candidate_id.`);
       if (isRecovery) {
-        throw new Error(
-          `Reconciliation conflict requiring manual review: payment ${existingPayment.id} has no candidate_id.`
-        );
+        const msg = `Reconciliation conflict requiring manual review: payment ${existingPayment.id} has no candidate_id.`;
+        await tryFlagManualReview(existingPayment.id, msg, source);
+        throw new Error(msg);
       }
       await supabaseAdmin
         .from("payments")
@@ -404,11 +381,10 @@ export function createHandlers(params: {
       .single();
 
     if (candErr || !candidate) {
-      console.error(`Candidate ${candidateId} not found in database for payment ${existingPayment.id}`);
       if (isRecovery) {
-        throw new Error(
-          `Reconciliation conflict requiring manual review: candidate ${candidateId} not found for payment ${existingPayment.id}.`
-        );
+        const msg = `Reconciliation conflict requiring manual review: candidate ${candidateId} not found for payment ${existingPayment.id}.`;
+        await tryFlagManualReview(existingPayment.id, msg, source);
+        throw new Error(msg);
       }
       await supabaseAdmin
         .from("payments")
@@ -419,13 +395,9 @@ export function createHandlers(params: {
 
     // 5.5. VERIFY SESSION METADATA CONSISTENCY (WHEN PRESENT)
     if (effectiveSession.metadata?.candidate_id && effectiveSession.metadata.candidate_id !== candidateId) {
-      console.error(
-        `CRITICAL: Candidate mismatch for session ${stripeSessionId}. ` +
-          `Stripe metadata reported '${effectiveSession.metadata.candidate_id}', DB recorded '${candidateId}'.`
-      );
-      throw new Error(
-        `Payment integrity mismatch: session metadata candidate_id '${effectiveSession.metadata.candidate_id}' does not match DB candidate_id '${candidateId}'.`
-      );
+      const msg = `Payment integrity mismatch: session metadata candidate_id '${effectiveSession.metadata.candidate_id}' does not match DB candidate_id '${candidateId}'.`;
+      await tryFlagManualReview(existingPayment.id, msg, source);
+      throw new Error(msg);
     }
 
     // 6. VALIDATE VOTE QUANTITY BOUNDS
@@ -435,11 +407,10 @@ export function createHandlers(params: {
       authoritativeVoteQuantity < MIN_VOTES_PER_TRANSACTION ||
       authoritativeVoteQuantity > MAX_VOTES_PER_TRANSACTION
     ) {
-      console.error(`Invalid vote_quantity ${authoritativeVoteQuantity} in payment record ${existingPayment.id}`);
       if (isRecovery) {
-        throw new Error(
-          `Reconciliation conflict requiring manual review: invalid vote_quantity ${authoritativeVoteQuantity} in payment ${existingPayment.id}.`
-        );
+        const msg = `Reconciliation conflict requiring manual review: invalid vote_quantity ${authoritativeVoteQuantity} in payment ${existingPayment.id}.`;
+        await tryFlagManualReview(existingPayment.id, msg, source);
+        throw new Error(msg);
       }
       await supabaseAdmin
         .from("payments")
@@ -451,13 +422,9 @@ export function createHandlers(params: {
     if (effectiveSession.metadata?.vote_quantity !== undefined) {
       const metadataVoteQty = Number(effectiveSession.metadata.vote_quantity);
       if (!Number.isInteger(metadataVoteQty) || metadataVoteQty !== authoritativeVoteQuantity) {
-        console.error(
-          `CRITICAL: Vote quantity mismatch for session ${stripeSessionId}. ` +
-            `Stripe metadata reported '${effectiveSession.metadata.vote_quantity}', DB recorded '${authoritativeVoteQuantity}'.`
-        );
-        throw new Error(
-          `Payment integrity mismatch: session metadata vote_quantity '${effectiveSession.metadata.vote_quantity}' does not match DB vote_quantity '${authoritativeVoteQuantity}'.`
-        );
+        const msg = `Payment integrity mismatch: session metadata vote_quantity '${effectiveSession.metadata.vote_quantity}' does not match DB vote_quantity '${authoritativeVoteQuantity}'.`;
+        await tryFlagManualReview(existingPayment.id, msg, source);
+        throw new Error(msg);
       }
     }
 
@@ -517,7 +484,14 @@ export function createHandlers(params: {
     });
 
     if (confirmErr) {
-      console.error("CRITICAL: confirm_stripe_payment RPC failed or unavailable:", confirmErr.message);
+      console.error("CRITICAL: confirm_stripe_payment RPC failed:", confirmErr.message);
+      if (
+        confirmErr.message.includes("manual review") ||
+        confirmErr.message.includes("Reconciliation conflict") ||
+        confirmErr.message.includes("Payment integrity")
+      ) {
+        await tryFlagManualReview(paymentId, confirmErr.message, source);
+      }
       throw new Error(`Payment processing failed at database level: ${confirmErr.message}`);
     }
 
@@ -565,16 +539,24 @@ export function createHandlers(params: {
   /**
    * Safe server-side reconciliation entry point for an uncredited payment row.
    * Queries trusted server-side Stripe Checkout Session & PaymentIntent state first;
-   * never converts a failed payment unless Stripe confirms payment_status === 'paid'
+   * never converts a failed or pending payment unless Stripe confirms payment_status === 'paid'
    * and PaymentIntent status === 'succeeded' with matching identity and amounts.
    */
-  async function reconcilePaymentSession(stripeSessionId: string): Promise<{
+  async function reconcilePaymentSession(
+    stripeSessionId: string,
+    options?: { source?: string }
+  ): Promise<{
     recovered: boolean;
     already_processed: boolean;
     status: string;
+    session_status?: string | null;
   }> {
     if (!supabaseAdmin || !stripe) {
       throw new Error("reconcilePaymentSession requires both supabaseAdmin and stripe clients.");
+    }
+
+    if (!stripeSessionId || !/^cs_[A-Za-z0-9_]+$/.test(stripeSessionId)) {
+      throw new Error(`Invalid Stripe Checkout Session ID: '${String(stripeSessionId)}'`);
     }
 
     const verifiedSession = await stripe.checkout.sessions.retrieve(stripeSessionId, {
@@ -586,19 +568,180 @@ export function createHandlers(params: {
         recovered: false,
         already_processed: false,
         status: `stripe_session_${verifiedSession.payment_status}`,
+        session_status: (verifiedSession as { status?: string | null }).status ?? null,
       };
     }
 
-    await handleCheckoutCompleted(verifiedSession);
+    await handleCheckoutCompleted(verifiedSession, {
+      source: options?.source ?? "reconcile_edge_fn",
+      forceServerVerification: false,
+    });
     return {
       recovered: true,
       already_processed: false,
       status: "reconciled_paid",
+      session_status: (verifiedSession as { status?: string | null }).status ?? "complete",
     };
   }
 
-  return { handleCheckoutCompleted, handleCheckoutFailed, reconcilePaymentSession };
+  /**
+   * Handles Stripe charge.refunded events safely and idempotently.
+   * Records full or partial refund status and flags for administrator review.
+   * Never deletes votes, never changes candidate scores, never issues refunds.
+   */
+  async function handleChargeRefunded(
+    charge: Stripe.Charge,
+    eventId: string
+  ): Promise<{
+    already_processed: boolean;
+    unknown_payment: boolean;
+    refund_status?: "partial" | "full";
+    payment_id?: string;
+  }> {
+    if (!supabaseAdmin) {
+      throw new Error("handleChargeRefunded requires supabaseAdmin client.");
+    }
+    if (!eventId || typeof eventId !== "string" || !eventId.trim()) {
+      throw new Error("Missing Stripe event ID for charge.refunded");
+    }
+    if (!charge || typeof charge.id !== "string" || !/^(ch|py)_[A-Za-z0-9_]+$/.test(charge.id)) {
+      throw new Error(`Invalid Stripe Charge ID on charge.refunded: '${String(charge?.id)}'`);
+    }
+
+    const amountRefunded = typeof charge.amount_refunded === "number" ? charge.amount_refunded : 0;
+    if (amountRefunded <= 0) {
+      return { already_processed: false, unknown_payment: false };
+    }
+
+    const paymentIntentId = extractPaymentIntentId(charge.payment_intent);
+    const refundReason =
+      charge.refunds?.data?.[0]?.reason ??
+      (charge as unknown as { reason?: string }).reason ??
+      "stripe_charge_refunded";
+
+    // Look up matching payment by stripe_payment_intent_id
+    let matchedPayment: { id: string; amount: number; status: string } | null = null;
+    if (paymentIntentId) {
+      const { data } = await supabaseAdmin
+        .from("payments")
+        .select("id, amount, status")
+        .eq("stripe_payment_intent_id", paymentIntentId)
+        .maybeSingle();
+      if (data) matchedPayment = data as { id: string; amount: number; status: string };
+    }
+
+    const { data: rpcRes, error: rpcErr } = await supabaseAdmin.rpc(
+      "record_stripe_refund_or_dispute",
+      {
+        p_stripe_event_id: eventId.trim(),
+        p_event_type: "charge.refunded",
+        p_payment_id: matchedPayment?.id ?? null,
+        p_stripe_payment_intent_id: paymentIntentId || null,
+        p_stripe_charge_id: charge.id,
+        p_stripe_dispute_id: null,
+        p_amount_cents: amountRefunded,
+        p_reason: refundReason,
+        p_dispute_status: null,
+        p_details: {
+          charge_amount: charge.amount ?? null,
+          fully_refunded: Boolean(charge.refunded),
+          currency: charge.currency ?? "usd",
+        },
+      }
+    );
+
+    if (rpcErr) {
+      throw new Error(`Failed to record charge.refunded (${eventId}): ${rpcErr.message}`);
+    }
+
+    return {
+      already_processed: Boolean(rpcRes?.already_processed),
+      unknown_payment: Boolean(rpcRes?.unknown_payment),
+      refund_status: rpcRes?.refund_status,
+      payment_id: rpcRes?.payment_id ?? matchedPayment?.id,
+    };
+  }
+
+  /**
+   * Handles Stripe charge.dispute.created and charge.dispute.closed events safely and idempotently.
+   * Preserves all votes and candidate scores while recording dispute lifecycle and flagging manual review.
+   */
+  async function handleChargeDispute(
+    dispute: Stripe.Dispute,
+    eventType: "charge.dispute.created" | "charge.dispute.closed",
+    eventId: string
+  ): Promise<{
+    already_processed: boolean;
+    unknown_payment: boolean;
+    dispute_status?: string;
+    manual_review_required?: boolean;
+    payment_id?: string;
+  }> {
+    if (!supabaseAdmin) {
+      throw new Error("handleChargeDispute requires supabaseAdmin client.");
+    }
+    if (!eventId || typeof eventId !== "string" || !eventId.trim()) {
+      throw new Error(`Missing Stripe event ID for ${eventType}`);
+    }
+    if (!dispute || typeof dispute.id !== "string" || !/^(dp|du)_[A-Za-z0-9_]+$/.test(dispute.id)) {
+      throw new Error(`Invalid Stripe Dispute ID on ${eventType}: '${String(dispute?.id)}'`);
+    }
+
+    const paymentIntentId = extractPaymentIntentId(dispute.payment_intent);
+    const chargeId = extractChargeId(dispute.charge);
+    const disputeAmount = typeof dispute.amount === "number" ? dispute.amount : 0;
+    const disputeReason = dispute.reason ?? "stripe_dispute";
+    const disputeStatus =
+      dispute.status ?? (eventType === "charge.dispute.closed" ? "lost" : "needs_response");
+
+    let matchedPayment: { id: string; amount: number; status: string } | null = null;
+    if (paymentIntentId) {
+      const { data } = await supabaseAdmin
+        .from("payments")
+        .select("id, amount, status")
+        .eq("stripe_payment_intent_id", paymentIntentId)
+        .maybeSingle();
+      if (data) matchedPayment = data as { id: string; amount: number; status: string };
+    }
+
+    const { data: rpcRes, error: rpcErr } = await supabaseAdmin.rpc(
+      "record_stripe_refund_or_dispute",
+      {
+        p_stripe_event_id: eventId.trim(),
+        p_event_type: eventType,
+        p_payment_id: matchedPayment?.id ?? null,
+        p_stripe_payment_intent_id: paymentIntentId || null,
+        p_stripe_charge_id: chargeId || null,
+        p_stripe_dispute_id: dispute.id,
+        p_amount_cents: disputeAmount,
+        p_reason: disputeReason,
+        p_dispute_status: disputeStatus,
+        p_details: {
+          currency: dispute.currency ?? "usd",
+        },
+      }
+    );
+
+    if (rpcErr) {
+      throw new Error(`Failed to record ${eventType} (${eventId}): ${rpcErr.message}`);
+    }
+
+    return {
+      already_processed: Boolean(rpcRes?.already_processed),
+      unknown_payment: Boolean(rpcRes?.unknown_payment),
+      dispute_status: rpcRes?.dispute_status ?? disputeStatus,
+      manual_review_required: rpcRes?.manual_review_required,
+      payment_id: rpcRes?.payment_id ?? matchedPayment?.id,
+    };
+  }
+
+  return {
+    handleCheckoutCompleted,
+    handleCheckoutFailed,
+    reconcilePaymentSession,
+    handleChargeRefunded,
+    handleChargeDispute,
+  };
 }
 
-// Export the factory for external usage.
 export type Handlers = ReturnType<typeof createHandlers>;

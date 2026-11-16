@@ -265,6 +265,45 @@ export type Database = {
           currency: string;
           status: "pending" | "paid" | "failed" | "refunded";
           created_at: string;
+          updated_at?: string;
+          paid_at?: string | null;
+          votes_credited_at?: string | null;
+          recovered_at?: string | null;
+          recovery_source?: string | null;
+          reconciliation_attempts?: number;
+          last_reconciled_at?: string | null;
+          next_reconcile_at?: string | null;
+          reconciliation_status?:
+            | "none"
+            | "pending_check"
+            | "reconciled"
+            | "skipped_unpaid"
+            | "transient_error"
+            | "exhausted"
+            | "manual_review";
+          last_reconciliation_error?: string | null;
+          manual_review_required?: boolean;
+          manual_review_reason?: string | null;
+          manual_review_flagged_at?: string | null;
+          stripe_charge_id?: string | null;
+          refund_status?: "none" | "partial" | "full";
+          refunded_amount?: number;
+          refunded_at?: string | null;
+          refund_reason?: string | null;
+          dispute_status?:
+            | "none"
+            | "warning_needs_response"
+            | "warning_under_review"
+            | "warning_closed"
+            | "needs_response"
+            | "under_review"
+            | "won"
+            | "lost";
+          stripe_dispute_id?: string | null;
+          disputed_amount?: number;
+          disputed_at?: string | null;
+          dispute_closed_at?: string | null;
+          dispute_reason?: string | null;
         };
       };
       votes: {
