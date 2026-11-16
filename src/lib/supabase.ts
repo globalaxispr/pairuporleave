@@ -917,14 +917,20 @@ export async function adjustCandidateScore({
     return { success: false, error: "Quantity cannot exceed 10,000 points per adjustment." };
   }
 
-  // Reason is optional
-  const cleanReason = (reason && reason.trim().length > 0) ? reason.trim() : null;
-
   // Canonical ledger types: new administrative additions use ADMIN_ADD, deductions use ADMIN_REMOVE
   const targetType =
     (type === "BONUS" || type === "ADMIN_ADD") ? "ADMIN_ADD" :
       (type === "PENALTY" || type === "ADMIN_REMOVE") ? "ADMIN_REMOVE" :
         type;
+
+  // Reason is optional in UI, but score_ledger.reason is NOT NULL in Postgres.
+  const defaultReason =
+    targetType === "ADMIN_ADD"
+      ? "Admin manual points addition"
+      : targetType === "ADMIN_REMOVE"
+        ? "Admin manual points deduction"
+        : "Admin manual score correction";
+  const cleanReason = (reason && reason.trim().length > 0) ? reason.trim() : defaultReason;
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(candidateId);
 
   // 2. Database path (when targeting real Supabase candidate UUID)
