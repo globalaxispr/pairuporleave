@@ -106,8 +106,7 @@ Deno.serve(async (req) => {
   try {
     const cronSecretHeader = req.headers.get("x-reconciliation-secret");
     const secFetchSite = req.headers.get("sec-fetch-site");
-    const secFetchMode = req.headers.get("sec-fetch-mode");
-    const isBrowserContext = Boolean(requestOrigin || secFetchSite || secFetchMode);
+    const isBrowserContext = Boolean(requestOrigin || secFetchSite);
 
     let triggerSource: "scheduled_cron" | "admin_manual" = "scheduled_cron";
     let triggeredByAdminId: string | null = null;

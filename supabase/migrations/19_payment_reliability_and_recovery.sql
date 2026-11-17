@@ -49,15 +49,24 @@ SET
   tax_amount = COALESCE(tax_amount, 0)
 WHERE subtotal_amount IS NULL;
 
--- Backfill paid_at and votes_credited_at for existing paid rows that already have a vote record
+-- Backfill paid_at, votes_credited_at, and reconciliation_status for existing paid rows that already have a vote record
 UPDATE public.payments p
 SET
   paid_at = COALESCE(p.paid_at, p.created_at),
-  votes_credited_at = COALESCE(p.votes_credited_at, v.created_at, p.created_at)
+  votes_credited_at = COALESCE(p.votes_credited_at, v.created_at, p.created_at),
+  reconciliation_status = CASE WHEN p.reconciliation_status = 'none' THEN 'reconciled' ELSE p.reconciliation_status END
 FROM public.votes v
 WHERE v.payment_id = p.id
   AND p.status = 'paid'
-  AND (p.paid_at IS NULL OR p.votes_credited_at IS NULL);
+  AND (p.paid_at IS NULL OR p.votes_credited_at IS NULL OR p.reconciliation_status = 'none');
+
+-- Backfill reconciliation_status = 'skipped_unpaid' for historical expired failed rows older than 26 hours with no PaymentIntent
+UPDATE public.payments
+SET reconciliation_status = 'skipped_unpaid'
+WHERE status = 'failed'
+  AND stripe_payment_intent_id IS NULL
+  AND reconciliation_status = 'none'
+  AND created_at < now() - interval '26 hours';
 
 ALTER TABLE public.payments
   ALTER COLUMN subtotal_amount SET NOT NULL;

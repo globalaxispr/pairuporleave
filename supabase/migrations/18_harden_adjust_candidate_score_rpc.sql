@@ -20,12 +20,22 @@
 
 BEGIN;
 
--- 1. Ensure score_ledger constraints support optional reason and all valid adjustment types
-ALTER TABLE public.score_ledger ALTER COLUMN reason DROP NOT NULL;
-
-ALTER TABLE public.score_ledger DROP CONSTRAINT IF EXISTS score_ledger_type_check;
-ALTER TABLE public.score_ledger ADD CONSTRAINT score_ledger_type_check
-  CHECK (type IN ('PAID_VOTE', 'BONUS', 'PENALTY', 'CORRECTION', 'ADMIN_ADD', 'ADMIN_REMOVE'));
+-- 1. Ensure score_ledger_type_check includes ADMIN_ADD and ADMIN_REMOVE without taking unnecessary table locks if already present
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'public.score_ledger'::regclass
+      AND conname = 'score_ledger_type_check'
+      AND pg_get_constraintdef(oid) LIKE '%ADMIN_ADD%'
+      AND pg_get_constraintdef(oid) LIKE '%ADMIN_REMOVE%'
+  ) THEN
+    ALTER TABLE public.score_ledger DROP CONSTRAINT IF EXISTS score_ledger_type_check;
+    ALTER TABLE public.score_ledger ADD CONSTRAINT score_ledger_type_check
+      CHECK (type IN ('PAID_VOTE', 'BONUS', 'PENALTY', 'CORRECTION', 'ADMIN_ADD', 'ADMIN_REMOVE'));
+  END IF;
+END;
+$$;
 
 -- 2. Ensure database-level unique index for PAID_VOTE idempotency exists
 CREATE UNIQUE INDEX IF NOT EXISTS score_ledger_paid_vote_ref_unique
