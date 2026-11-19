@@ -1,6 +1,5 @@
 import { Helmet } from "react-helmet-async";
 import { Mail, Shield, FileText } from "lucide-react";
-import { IS_PLATFORM_SERVICE_FEE_ENABLED } from "@/lib/supabase";
 import { SITE_URL } from "@/lib/utils";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -328,7 +327,7 @@ export function TermsPage() {
     <>
       <Helmet>
         <title>Terms of Service — Pair Up or Leave</title>
-        <meta name="description" content="Read the Pair Up or Leave Terms of Service. Covers voting rules, pricing ($1/vote individuals, $2/vote couples), ranking, points, penalties, prohibited conduct and more." />
+        <meta name="description" content="Read the Pair Up or Leave Terms of Service. Covers voting rules, pricing ($2.00/vote + 15% service fee for individuals and couples), ranking, points, penalties, prohibited conduct and more." />
         <meta property="og:title" content="Terms of Service — Pair Up or Leave" />
         <meta property="og:description" content="Full Terms of Service for the Pair Up or Leave voting competition platform." />
         <meta property="og:url" content={`${SITE_URL}/terms`} />
@@ -373,43 +372,20 @@ export function TermsPage() {
 
           {/* 3 */}
           <h2 style={sectionTitle}>3. Voting Rules &amp; Pricing</h2>
-          {IS_PLATFORM_SERVICE_FEE_ENABLED ? (
-            <>
-              <p style={bodyText}>
-                <strong>Individual candidates:</strong> Each vote has a base value of $1.00 USD ($1.80
-                USD total for a single-vote purchase including the mandatory Platform Service Fee). The
-                candidate receives the exact number of votes purchased.
-              </p>
-              <p style={bodyText}>
-                <strong>Couple entries:</strong> Each vote has a base value of $2.00 USD ($2.80 USD
-                total for a single-vote purchase including the mandatory Platform Service Fee). The
-                couple receives the exact number of votes purchased.
-              </p>
-              <p style={bodyText}>
-                <strong>Platform Service Fee:</strong> Every checkout transaction includes a mandatory
-                Platform Service Fee, calculated per vote in whole cents: <strong>$0.80 per vote</strong>{" "}
-                when you purchase 1&ndash;19 votes in a checkout, or <strong>$0.50 per vote on all
-                votes</strong> when you purchase 20 or more votes in that checkout. The tier is based
-                only on the quantity in the current checkout, not on past purchases. Because the lower
-                rate applies to every vote at 20+, a 20-vote checkout can cost less than a 19-vote
-                checkout. The fee helps cover payment processing and platform operations. The Platform Service Fee is a commercial service
-                charge (not a government tax) and never increases the number of votes credited. The
-                complete itemized breakdown (Base Vote Subtotal, Platform Service Fee, any applicable
-                government tax if required, and Total Due) is displayed prior to payment authorization.
-              </p>
-            </>
-          ) : (
-            <>
-              <p style={bodyText}>
-                <strong>Individual candidates:</strong> Each vote costs $1.00 USD. The candidate
-                receives the exact number of votes purchased.
-              </p>
-              <p style={bodyText}>
-                <strong>Couple entries:</strong> Each vote costs $2.00 USD. The couple receives the
-                exact number of votes purchased.
-              </p>
-            </>
-          )}
+          <p style={bodyText}>
+            <strong>Individual candidates &amp; couple entries:</strong> Each vote costs $2.00 USD
+            plus a flat 15% service fee ($2.30 USD total for a single-vote purchase) for both
+            individual candidates and couple entries. The candidate or couple receives the exact
+            number of votes purchased.
+          </p>
+          <p style={bodyText}>
+            <strong>Platform Service Fee (15%):</strong> Every checkout transaction includes a
+            mandatory 15% service fee calculated on the voting subtotal in whole cents ($0.30 per
+            $2.00 vote). The fee helps cover payment processing and platform operations. The
+            service fee is a commercial service charge (not a government tax) and never increases
+            the number of votes credited. The complete itemized breakdown (Voting Subtotal, Service
+            Fee (15%), and Total Due) is displayed prior to payment authorization.
+          </p>
           <p style={bodyText}>
             There is no maximum lifetime vote purchase limit per voter (up to 1,000 votes per single
             checkout transaction). You may vote for the same candidate or couple multiple times.

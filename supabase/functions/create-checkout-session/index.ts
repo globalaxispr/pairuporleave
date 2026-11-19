@@ -3,13 +3,9 @@ import { createClient } from "npm:@supabase/supabase-js@^2";
 import {
   calculateVotePricingCents,
   isValidVoteQuantity,
-  TIERED_PRICING_VERSION,
-  LEGACY_PRICING_VERSION,
+  ACTIVE_PRICING_VERSION,
   MIN_VOTES_PER_TRANSACTION,
   MAX_VOTES_PER_TRANSACTION,
-  SERVICE_FEE_DISCOUNT_THRESHOLD_VOTES,
-  SERVICE_FEE_STANDARD_CENTS_PER_VOTE,
-  SERVICE_FEE_DISCOUNT_CENTS_PER_VOTE,
 } from "../_shared/pricing.ts";
 
 const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
@@ -307,13 +303,8 @@ Deno.serve(async (req) => {
     // shows one price and charges another. Client price fields are never trusted.
     // ====================================================
     const candidateType = (candidate.candidate_type as string) === "couple" ? "couple" : "individual";
-    const serverFeeFlagEnabled =
-      (Deno.env.get("ENABLE_PLATFORM_SERVICE_FEE") ?? "false").toLowerCase() === "true";
 
-    if (
-      (serverFeeFlagEnabled && pricing_version !== TIERED_PRICING_VERSION) ||
-      (!serverFeeFlagEnabled && pricing_version !== undefined && pricing_version !== LEGACY_PRICING_VERSION)
-    ) {
+    if (pricing_version !== ACTIVE_PRICING_VERSION) {
       return new Response(
         JSON.stringify({
           error:
@@ -322,17 +313,15 @@ Deno.serve(async (req) => {
         { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-    const applyServiceFee = serverFeeFlagEnabled;
 
-    const pricing = calculateVotePricingCents(candidateType, vote_quantity, applyServiceFee, 0);
+    const pricing = calculateVotePricingCents(candidateType, vote_quantity);
     const {
       unitPriceCents,
       subtotalCents,
-      serviceFeePerVoteCents,
+      serviceFeePercent,
       serviceFeeCents,
       taxCents,
       totalAmountCents,
-      discountTierApplied,
     } = pricing;
 
     // client_total_cents is only a display-parity guard (never used to price).
@@ -357,7 +346,7 @@ Deno.serve(async (req) => {
           currency: "usd",
           product_data: {
             name: `${vote_quantity} Vote${vote_quantity > 1 ? "s" : ""} for ${candidateDisplayName}`,
-            description: `${candidate.category} · ${candidateType === "couple" ? "Couple Candidate ($2.00/vote base)" : "Individual Candidate ($1.00/vote base)"} · Pair Up or Leave`,
+            description: `${candidate.category} · ${candidateType === "couple" ? "Couple Candidate" : "Individual Candidate"} ($2.00/vote) · Pair Up or Leave`,
           },
           unit_amount: unitPriceCents,
         },
@@ -366,21 +355,17 @@ Deno.serve(async (req) => {
     ];
 
     if (serviceFeeCents > 0) {
-      // unit_amount x quantity == serviceFeeCents exactly (integer cents), so the
-      // Stripe total always equals subtotal + fee as shown in the UI.
       lineItems.push({
         price_data: {
           currency: "usd",
           product_data: {
-            name: discountTierApplied
-              ? `Service Fee ($${(serviceFeePerVoteCents / 100).toFixed(2)}/vote · ${SERVICE_FEE_DISCOUNT_THRESHOLD_VOTES}+ vote discount applied)`
-              : `Service Fee ($${(serviceFeePerVoteCents / 100).toFixed(2)}/vote)`,
+            name: `Service fee (${serviceFeePercent}%)`,
             description:
-              `Service fee is $${(SERVICE_FEE_STANDARD_CENTS_PER_VOTE / 100).toFixed(2)}/vote for 1-${SERVICE_FEE_DISCOUNT_THRESHOLD_VOTES - 1} votes and $${(SERVICE_FEE_DISCOUNT_CENTS_PER_VOTE / 100).toFixed(2)}/vote for all votes at ${SERVICE_FEE_DISCOUNT_THRESHOLD_VOTES}+. Does not add votes; not a government tax.`,
+              `${serviceFeePercent}% platform service fee. Does not add votes; not a government tax.`,
           },
-          unit_amount: serviceFeePerVoteCents,
+          unit_amount: serviceFeeCents,
         },
-        quantity: vote_quantity,
+        quantity: 1,
       });
     }
     // Create Stripe Checkout Session — amount and pricing set entirely server-side
@@ -396,12 +381,11 @@ Deno.serve(async (req) => {
         vote_quantity: vote_quantity.toString(),
         vote_price: unitPriceCents.toString(),
         subtotal_cents: subtotalCents.toString(),
+        service_fee_percent: serviceFeePercent.toString(),
         service_fee_cents: serviceFeeCents.toString(),
-        service_fee_per_vote_cents: serviceFeePerVoteCents.toString(),
-        service_fee_discount_tier: discountTierApplied ? "true" : "false",
         tax_cents: taxCents.toString(),
         expected_amount_cents: totalAmountCents.toString(),
-        pricing_version: applyServiceFee ? TIERED_PRICING_VERSION : LEGACY_PRICING_VERSION,
+        pricing_version: ACTIVE_PRICING_VERSION,
         competition_name: schedule?.name ?? "PAIR UP OR LEAVE",
         competition_end_time: schedule?.end_time ?? "",
       },

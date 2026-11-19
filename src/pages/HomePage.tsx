@@ -14,9 +14,8 @@ import { IS_PLATFORM_SERVICE_FEE_ENABLED } from "@/lib/supabase";
 import { SITE_URL } from "@/lib/utils";
 
 export function HomePage() {
-  const description = IS_PLATFORM_SERVICE_FEE_ENABLED
-    ? "Pair Up or Leave is the official voting platform. Support your favorite couples and candidates with secure Stripe payments. $1/vote base ($1.80 w/ service fee for 1 vote) for individuals, $2/vote base ($2.80 w/ service fee for 1 vote) for couples. No account required."
-    : "Pair Up or Leave is the official voting platform. Support your favorite couples and candidates with secure Stripe payments. $1/vote for individuals, $2/vote for couples. No account required.";
+  const description =
+    "Pair Up or Leave is the official voting platform. Support your favorite couples and candidates with secure Stripe payments. $2.00/vote + 15% service fee ($2.30 total for 1 vote) for all candidates and couples. No account required.";
 
   const websiteSchema = {
     "@context": "https://schema.org",
@@ -47,11 +46,7 @@ export function HomePage() {
         <meta property="og:title" content="Pair Up or Leave — Official Live Voting Competition | Vote Now" />
         <meta
           property="og:description"
-          content={
-            IS_PLATFORM_SERVICE_FEE_ENABLED
-              ? "Support your favorite couples and candidates. $1/vote base ($1.80 w/ fee) for individuals, $2/vote base ($2.80 w/ fee) for couples. Secure payments via Stripe."
-              : "Support your favorite couples and candidates. $1/vote for individuals, $2/vote for couples. Secure payments via Stripe."
-          }
+          content="Support your favorite couples and candidates. $2.00/vote + 15% service fee ($2.30 total for 1 vote). Secure payments via Stripe."
         />
         <meta property="og:url" content={`${SITE_URL}/`} />
         <meta property="og:image" content={`${SITE_URL}/og-image.jpg`} />
@@ -59,7 +54,7 @@ export function HomePage() {
         <meta name="twitter:title" content="Pair Up or Leave — Official Live Voting Competition | Vote Now" />
         <meta
           name="twitter:description"
-          content="Support your favorite couples ($2/vote) and individual candidates ($1/vote). Watch the live show and track real-time rankings."
+          content="Support your favorite couples and individual candidates ($2.00/vote + 15% service fee). Watch the live show and track real-time rankings."
         />
         <meta name="twitter:image" content={`${SITE_URL}/og-image.jpg`} />
         <link rel="canonical" href={`${SITE_URL}/`} />

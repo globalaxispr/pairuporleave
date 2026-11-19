@@ -5,10 +5,8 @@ import { X, Minus, Plus, Vote, Loader2, AlertCircle, Lock, Users, User } from "l
 import {
   getVotePriceDollars,
   calculateVotePricingCents,
-  getSingleVoteAllInPriceFormatted,
   IS_PLATFORM_SERVICE_FEE_ENABLED,
   PRICING_VERSION,
-  SERVICE_FEE_TIER_SUMMARY,
   type PublicCandidate,
   getCandidateScore,
   supabaseUrl,
@@ -34,7 +32,6 @@ export function VoteModal({ candidate, onClose }: VoteModalProps) {
   const isCouple = candidate.candidate_type === "couple";
   const unitPrice = getVotePriceDollars(candidate.candidate_type);
   const pricing = calculateVotePricingCents(candidate.candidate_type, quantity);
-  const singleVoteAllIn = getSingleVoteAllInPriceFormatted(candidate.candidate_type);
 
   const candidateDisplayName = candidate.display_name || candidate.name;
   const modalRef = useRef<HTMLDivElement | null>(null);
@@ -204,9 +201,7 @@ export function VoteModal({ candidate, onClose }: VoteModalProps) {
                   color: "#7A0C2E",
                 }}
               >
-                {IS_PLATFORM_SERVICE_FEE_ENABLED
-                  ? `$${unitPrice}.00/vote base (${singleVoteAllIn} w/ fee for 1)`
-                  : `$${unitPrice} per vote`}
+                ${unitPrice}.00 per vote (+{pricing.serviceFeePercent}% service fee)
               </span>
             </div>
 
@@ -409,7 +404,7 @@ export function VoteModal({ candidate, onClose }: VoteModalProps) {
           <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem", marginBottom: "0.625rem" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ color: "#24131A", fontSize: "0.875rem", fontWeight: 700 }}>
-                Base Vote Subtotal ({formatNumber(quantity)} Vote{quantity !== 1 ? "s" : ""} × ${unitPrice}.00)
+                Voting Subtotal ({formatNumber(quantity)} Vote{quantity !== 1 ? "s" : ""} × ${unitPrice}.00)
               </span>
               <span style={{ color: "#24131A", fontSize: "0.875rem", fontWeight: 800 }}>
                 {formatCurrency(pricing.subtotalCents)}
@@ -419,32 +414,11 @@ export function VoteModal({ candidate, onClose }: VoteModalProps) {
             {pricing.serviceFeeCents > 0 && (
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span style={{ color: "#6B6870", fontSize: "0.8125rem", fontWeight: 600 }}>
-                  Service Fee ({formatNumber(quantity)} × {formatCurrency(pricing.serviceFeePerVoteCents)}
-                  {pricing.discountTierApplied ? " · 20+ vote discount" : ""}) · adds 0 votes
+                  Service Fee ({pricing.serviceFeePercent}%) · adds 0 votes
                 </span>
                 <span id="service-fee-amount" style={{ color: "#24131A", fontSize: "0.8125rem", fontWeight: 700 }}>
                   {formatCurrency(pricing.serviceFeeCents)}
                 </span>
-              </div>
-            )}
-
-            {IS_PLATFORM_SERVICE_FEE_ENABLED && (
-              <div
-                id="service-fee-tier-notice"
-                style={{
-                  background: pricing.discountTierApplied ? "#ECFDF5" : "#FFF3F5",
-                  border: `1px solid ${pricing.discountTierApplied ? "#A7F3D0" : "#F0DCE2"}`,
-                  borderRadius: 10,
-                  padding: "0.4rem 0.625rem",
-                  fontSize: "0.71875rem",
-                  fontWeight: 700,
-                  color: pricing.discountTierApplied ? "#047857" : "#7A0C2E",
-                }}
-              >
-                {pricing.discountTierApplied
-                  ? "Discount applied: $0.50/vote service fee on all your votes (20+ votes)."
-                  : "Buy 20 or more votes and the service fee drops from $0.80 to $0.50 per vote, on every vote."}
-                <div style={{ fontWeight: 600, marginTop: 2, opacity: 0.85 }}>{SERVICE_FEE_TIER_SUMMARY}</div>
               </div>
             )}
             {pricing.taxCents > 0 && (

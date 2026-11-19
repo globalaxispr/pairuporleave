@@ -1,8 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
 import {
   calculateVotePricingCents as sharedCalculateVotePricingCents,
-  TIERED_PRICING_VERSION,
-  LEGACY_PRICING_VERSION,
+  ACTIVE_PRICING_VERSION,
+  UNIT_PRICE_CENTS,
+  SERVICE_FEE_PERCENT,
   MIN_VOTES_PER_TRANSACTION,
   MAX_VOTES_PER_TRANSACTION,
   type VotePriceBreakdownCents,
@@ -82,23 +83,17 @@ export const supabase = createClient(
 export type CandidateType = "individual" | "couple";
 export type ScoreAdjustmentType = "PAID_VOTE" | "BONUS" | "PENALTY" | "CORRECTION" | "ADMIN_ADD" | "ADMIN_REMOVE";
 
-export function getVotePriceDollars(type?: CandidateType | string | null): number {
-  return type === "couple" ? 2 : 1;
+export function getVotePriceDollars(_type?: CandidateType | string | null): number {
+  return UNIT_PRICE_CENTS / 100;
 }
 
-export function getVotePriceCents(type?: CandidateType | string | null): number {
-  return type === "couple" ? 200 : 100;
+export function getVotePriceCents(_type?: CandidateType | string | null): number {
+  return UNIT_PRICE_CENTS;
 }
 
-/**
- * Feature flag controlling whether the mandatory Platform Service Fee is active in the UI
- * and sent with pricing_version="tiered_v2" to create-checkout-session.
- * Active in production unless VITE_ENABLE_PLATFORM_SERVICE_FEE="false" is explicitly set.
- */
-export const IS_PLATFORM_SERVICE_FEE_ENABLED =
-  import.meta.env.VITE_ENABLE_PLATFORM_SERVICE_FEE !== "false";
+export const IS_PLATFORM_SERVICE_FEE_ENABLED = true;
 
-export const PRICING_VERSION = IS_PLATFORM_SERVICE_FEE_ENABLED ? TIERED_PRICING_VERSION : LEGACY_PRICING_VERSION;
+export const PRICING_VERSION = ACTIVE_PRICING_VERSION;
 
 export type { VotePriceBreakdownCents };
 
@@ -106,20 +101,18 @@ export type { VotePriceBreakdownCents };
  * Canonical integer-cent pricing calculation. Mirrors the server
  * (supabase/functions/_shared/pricing.ts) exactly; the server remains the only
  * authority and re-computes everything at checkout. Clamps quantity for the UI.
- * Service fee: 80c/vote for 1-19 votes, 50c/vote for ALL votes at 20+.
+ * Both individual and couple candidates cost $2.00/vote with a flat 15% service fee.
  * The service fee NEVER increases voteQuantity.
  */
 export function calculateVotePricingCents(
   type?: CandidateType | string | null,
-  voteQuantity = 1,
-  applyServiceFee = IS_PLATFORM_SERVICE_FEE_ENABLED,
-  taxCents = 0
+  voteQuantity = 1
 ): VotePriceBreakdownCents {
   const safeQty = Math.max(
     MIN_VOTES_PER_TRANSACTION,
     Math.min(MAX_VOTES_PER_TRANSACTION, Math.floor(voteQuantity || 1))
   );
-  return sharedCalculateVotePricingCents(type, safeQty, applyServiceFee, taxCents);
+  return sharedCalculateVotePricingCents(type, safeQty);
 }
 
 export function getSingleVoteAllInPriceFormatted(type?: CandidateType | string | null): string {
@@ -128,7 +121,7 @@ export function getSingleVoteAllInPriceFormatted(type?: CandidateType | string |
 }
 
 export const SERVICE_FEE_TIER_SUMMARY =
-  "Service fee: $0.80/vote for 1\u201319 votes, $0.50/vote for all votes when you buy 20 or more.";
+  `Service fee: ${SERVICE_FEE_PERCENT}% of the voting subtotal.`;
 /**
  * PublicCandidate is the ONLY candidate shape ever sent to public pages/components.
  * It MUST NOT include: paid_votes, bonus_votes, penalty_points, total_votes,

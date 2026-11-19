@@ -1,5 +1,5 @@
 /**
- * Tiered service fee verification (pure integer-cent logic + frontend/server parity).
+ * Flat $2.00/vote + 15% service fee verification (pure integer-cent logic + frontend/server parity).
  * Run: node scripts/test-tiered-pricing.mjs   (Node >= 22.6, native TS stripping)
  * No network, no Stripe, no database.
  */
@@ -25,90 +25,80 @@ function test(name, fn) {
   }
 }
 
-const { calculateVotePricingCents: calc, MAX_VOTES_PER_TRANSACTION: MAX } = server;
+const {
+  calculateVotePrice,
+  calculateVotePricingCents: calc,
+  MAX_VOTES_PER_TRANSACTION: MAX,
+  UNIT_PRICE_CENTS,
+  SERVICE_FEE_PERCENT,
+  ACTIVE_PRICING_VERSION,
+} = server;
 
-console.log("\nTIERED SERVICE FEE TESTS\n");
+console.log("\nFLAT $2.00 + 15% SERVICE FEE PRICING TESTS\n");
 
-// --- Owner-approved couple examples (cents) ---
-const COUPLE = { 1: 280, 10: 2800, 19: 5320, 20: 5000, 50: 12500, 100: 25000 };
-for (const [q, total] of Object.entries(COUPLE)) {
-  test(`couple ${q} votes = $${(total / 100).toFixed(2)}`, () => {
-    assert.equal(calc("couple", Number(q), true).totalAmountCents, total);
-  });
-}
-
-// --- Individual expectations: $1.00 + $0.80 / $0.50 ---
-const INDIVIDUAL = { 1: 180, 10: 1800, 19: 3420, 20: 3000, 21: 3150, 50: 7500, 100: 15000, [MAX]: 150000 };
-for (const [q, total] of Object.entries(INDIVIDUAL)) {
-  test(`individual ${q} votes = $${(total / 100).toFixed(2)}`, () => {
-    assert.equal(calc("individual", Number(q), true).totalAmountCents, total);
-  });
-}
-
-test("couple 21 votes = $52.50, couple max (1000) = $2500.00", () => {
-  assert.equal(calc("couple", 21, true).totalAmountCents, 5250);
-  assert.equal(calc("couple", MAX, true).totalAmountCents, 250000);
+test("constants match official flat_2usd_15pct_v1 spec", () => {
+  assert.equal(ACTIVE_PRICING_VERSION, "flat_2usd_15pct_v1");
+  assert.equal(UNIT_PRICE_CENTS, 200);
+  assert.equal(SERVICE_FEE_PERCENT, 15);
+  assert.equal(MAX, 1000);
 });
 
-test("breakdown fields for couple 19 and 20", () => {
-  const a = calc("couple", 19, true);
-  assert.deepEqual(
-    [a.subtotalCents, a.serviceFeePerVoteCents, a.serviceFeeCents, a.discountTierApplied],
-    [3800, 80, 1520, false]
-  );
-  const b = calc("couple", 20, true);
-  assert.deepEqual(
-    [b.subtotalCents, b.serviceFeePerVoteCents, b.serviceFeeCents, b.discountTierApplied],
-    [4000, 50, 1000, true]
-  );
-});
+// Mandatory test quantities: 1, 2, 5, 10, 25, 50, 100, 200, 500, 1000
+const EXPECTED_CENTS = {
+  1:    { subtotal: 200,    fee: 30,    total: 230 },
+  2:    { subtotal: 400,    fee: 60,    total: 460 },
+  5:    { subtotal: 1000,   fee: 150,   total: 1150 },
+  10:   { subtotal: 2000,   fee: 300,   total: 2300 },
+  25:   { subtotal: 5000,   fee: 750,   total: 5750 },
+  50:   { subtotal: 10000,  fee: 1500,  total: 11500 },
+  100:  { subtotal: 20000,  fee: 3000,  total: 23000 },
+  200:  { subtotal: 40000,  fee: 6000,  total: 46000 },
+  500:  { subtotal: 100000, fee: 15000, total: 115000 },
+  1000: { subtotal: 200000, fee: 30000, total: 230000 },
+};
 
-test("INTENTIONAL: total for 20 votes < total for 19 votes (owner-approved)", () => {
-  for (const type of ["individual", "couple"]) {
-    assert.ok(calc(type, 20, true).totalAmountCents < calc(type, 19, true).totalAmountCents);
-  }
-});
-
-test("threshold is 20 exactly; fee is per-vote for ALL votes", () => {
-  assert.equal(calc("individual", 19, true).serviceFeePerVoteCents, 80);
-  assert.equal(calc("individual", 20, true).serviceFeePerVoteCents, 50);
-  assert.equal(calc("individual", 20, true).serviceFeeCents, 20 * 50);
-  assert.equal(calc("individual", 21, true).serviceFeeCents, 21 * 50);
-});
-
-test("fees disabled => base price only, zero fee", () => {
-  const p = calc("couple", 20, false);
-  assert.equal(p.serviceFeeCents, 0);
-  assert.equal(p.totalAmountCents, 4000);
-  assert.equal(p.discountTierApplied, false);
-});
-
-test("unknown / null candidate type is priced as individual", () => {
-  assert.equal(calc(null, 1, true).totalAmountCents, 180);
-  assert.equal(calc("whatever", 1, true).unitPriceCents, 100);
-});
-
-test("every quantity 1..MAX: all integers, total = subtotal + fee + tax, votes unchanged", () => {
-  for (const type of ["individual", "couple"]) {
-    for (let q = 1; q <= MAX; q++) {
-      const p = calc(type, q, true);
-      for (const v of [p.subtotalCents, p.serviceFeeCents, p.totalAmountCents, p.serviceFeePerVoteCents]) {
-        assert.ok(Number.isSafeInteger(v) && v >= 0);
-      }
+for (const type of ["individual", "couple"]) {
+  for (const [qStr, exp] of Object.entries(EXPECTED_CENTS)) {
+    const q = Number(qStr);
+    test(`${type} ${q} vote(s) = subtotal $${(exp.subtotal / 100).toFixed(2)} + fee $${(exp.fee / 100).toFixed(2)} = $${(exp.total / 100).toFixed(2)}`, () => {
+      const p = calc(type, q);
+      assert.equal(p.unitPriceCents, 200);
       assert.equal(p.voteQuantity, q);
-      assert.equal(p.subtotalCents, q * (type === "couple" ? 200 : 100));
-      assert.equal(p.totalAmountCents, p.subtotalCents + p.serviceFeeCents + p.taxCents);
-      assert.equal(p.serviceFeeCents, q * (q >= 20 ? 50 : 80));
-    }
+      assert.equal(p.subtotalCents, exp.subtotal);
+      assert.equal(p.serviceFeePercent, 15);
+      assert.equal(p.serviceFeeCents, exp.fee);
+      assert.equal(p.taxCents, 0);
+      assert.equal(p.totalAmountCents, exp.total);
+      assert.deepEqual(calculateVotePrice(q), p);
+    });
   }
+}
+
+test("individual and couple produce identical pricing for every quantity 1..MAX", () => {
+  for (let q = 1; q <= MAX; q++) {
+    const ind = calc("individual", q);
+    const cpl = calc("couple", q);
+    assert.deepEqual(ind, cpl);
+    assert.equal(ind.unitPriceCents, 200);
+    assert.equal(ind.subtotalCents, q * 200);
+    assert.equal(ind.serviceFeeCents, Math.round((q * 200 * 15) / 100));
+    assert.equal(ind.taxCents, 0);
+    assert.equal(ind.totalAmountCents, ind.subtotalCents + ind.serviceFeeCents);
+  }
+});
+
+test("unknown / null candidate type also prices at $2.00 + 15%", () => {
+  assert.equal(calc(null, 1).totalAmountCents, 230);
+  assert.equal(calc("whatever", 1).unitPriceCents, 200);
 });
 
 test("invalid quantities are rejected (0, -1, 1.5, 1001, NaN, string, null, Infinity)", () => {
   for (const bad of [0, -1, 1.5, MAX + 1, NaN, "10", null, undefined, Infinity]) {
     assert.equal(server.isValidVoteQuantity(bad), false, String(bad));
-    assert.throws(() => calc("couple", bad, true), RangeError, String(bad));
+    assert.throws(() => calc("couple", bad), RangeError, String(bad));
+    assert.throws(() => calculateVotePrice(bad), RangeError, String(bad));
   }
-  for (const ok of [1, 19, 20, MAX]) assert.equal(server.isValidVoteQuantity(ok), true);
+  for (const ok of [1, 10, 25, MAX]) assert.equal(server.isValidVoteQuantity(ok), true);
 });
 
 test("frontend and server modules are byte-identical (no drift)", () => {
@@ -120,16 +110,16 @@ test("frontend and server modules are byte-identical (no drift)", () => {
 test("frontend result === server result for every quantity and type", () => {
   for (const type of ["individual", "couple"]) {
     for (let q = 1; q <= MAX; q++) {
-      assert.deepEqual(client.calculateVotePricingCents(type, q, true), server.calculateVotePricingCents(type, q, true));
+      assert.deepEqual(client.calculateVotePricingCents(type, q), server.calculateVotePricingCents(type, q));
     }
   }
 });
 
-test("Stripe line items (unit_amount x quantity) sum exactly to the computed total", () => {
+test("Stripe line items (unit_amount x quantity + 1 x serviceFeeCents) sum exactly to totalAmountCents", () => {
   for (const type of ["individual", "couple"]) {
-    for (const q of [1, 10, 19, 20, 21, 50, 100, MAX]) {
-      const p = calc(type, q, true);
-      const stripeTotal = p.unitPriceCents * q + p.serviceFeePerVoteCents * q;
+    for (const q of [1, 2, 5, 10, 25, 50, 100, 200, 500, MAX]) {
+      const p = calc(type, q);
+      const stripeTotal = p.unitPriceCents * q + p.serviceFeeCents * 1;
       assert.equal(stripeTotal, p.totalAmountCents);
     }
   }

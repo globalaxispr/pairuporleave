@@ -518,7 +518,7 @@ export function CandidateCard({ candidate, rank }: CandidateCardProps) {
               }}
               title={
                 IS_PLATFORM_SERVICE_FEE_ENABLED
-                  ? `$${pricePerVote.toFixed(2)}/vote base (${singleVoteAllIn} total for 1 vote w/ service fee)`
+                  ? `$${pricePerVote.toFixed(2)}/vote + 15% service fee (${singleVoteAllIn} total for 1 vote)`
                   : `$${pricePerVote.toFixed(2)}/vote`
               }
             >
@@ -548,7 +548,7 @@ export function CandidateCard({ candidate, rank }: CandidateCardProps) {
                     whiteSpace: "nowrap",
                   }}
                 >
-                  + service fee
+                  + 15% service fee
                 </span>
               )}
             </div>

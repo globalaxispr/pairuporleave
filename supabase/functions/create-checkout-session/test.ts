@@ -94,68 +94,68 @@ function stripeTotalCents(p: URLSearchParams): number {
   return total;
 }
 
-function setup(opts: { fee: boolean; type?: "individual" | "couple" }) {
+function setup(opts: { type?: "individual" | "couple" } = {}) {
   rec = { stripeBodies: [], paymentInserts: [] };
   candidateType = opts.type ?? "couple";
   candidateStatus = "active";
   scheduleEndTime = new Date(Date.now() + 86_400_000).toISOString();
-  Deno.env.set("ENABLE_PLATFORM_SERVICE_FEE", opts.fee ? "true" : "false");
 }
 
 const OPTS = { sanitizeOps: false, sanitizeResources: false };
 
-Deno.test({ name: "couple examples: Stripe amount == frontend-displayed total == DB amount; votes credited == quantity", ...OPTS, fn: async () => {
-  const expected: Record<number, number> = { 1: 280, 10: 2800, 19: 5320, 20: 5000, 21: 5250, 50: 12500, 100: 25000, 1000: 250000 };
-  for (const [qStr, total] of Object.entries(expected)) {
-    const q = Number(qStr);
-    setup({ fee: true, type: "couple" });
-    const res = await call({ candidate_id: CANDIDATE_ID, vote_quantity: q, pricing_version: "tiered_v2", client_total_cents: total });
-    assertEquals(res.status, 200, `q=${q}`);
-    assertEquals((await res.json()).url, "https://checkout.stripe.com/c/pay/cs_test_mock123");
-    assertEquals(rec.stripeBodies.length, 1);
-    const sp = rec.stripeBodies[0];
-    assertEquals(stripeTotalCents(sp), total, `stripe total q=${q}`);
-    assertEquals(sp.get("metadata[expected_amount_cents]"), String(total));
-    assertEquals(sp.get("metadata[vote_quantity]"), String(q));
-    assertEquals(sp.get("metadata[pricing_version]"), "tiered_v2");
-    assertEquals(sp.get("metadata[service_fee_per_vote_cents]"), q >= 20 ? "50" : "80");
-    const row = rec.paymentInserts[0];
-    assertEquals(row.vote_quantity, q);
-    assertEquals(row.amount, total);
-    assertEquals(row.subtotal_amount, q * 200);
-    assertEquals(row.service_fee_amount, q * (q >= 20 ? 50 : 80));
-    assertEquals(row.tax_amount, 0);
-    assertEquals(row.status, "pending");
-    assertEquals((row.subtotal_amount as number) + (row.service_fee_amount as number) + (row.tax_amount as number), row.amount);
+Deno.test({ name: "flat $2.00 + 15% service fee for both individual and couple across required quantities", ...OPTS, fn: async () => {
+  const expected: Record<number, number> = {
+    1: 230, 2: 460, 5: 1150, 10: 2300, 25: 5750,
+    50: 11500, 100: 23000, 200: 46000, 500: 115000, 1000: 230000,
+  };
+  for (const type of ["individual", "couple"] as const) {
+    for (const [qStr, total] of Object.entries(expected)) {
+      const q = Number(qStr);
+      setup({ type });
+      const res = await call({
+        candidate_id: CANDIDATE_ID,
+        vote_quantity: q,
+        pricing_version: "flat_2usd_15pct_v1",
+        client_total_cents: total,
+      });
+      assertEquals(res.status, 200, `${type} q=${q}`);
+      assertEquals((await res.json()).url, "https://checkout.stripe.com/c/pay/cs_test_mock123");
+      assertEquals(rec.stripeBodies.length, 1);
+      const sp = rec.stripeBodies[0];
+      assertEquals(stripeTotalCents(sp), total, `stripe total ${type} q=${q}`);
+      assertEquals(sp.get("metadata[expected_amount_cents]"), String(total));
+      assertEquals(sp.get("metadata[vote_quantity]"), String(q));
+      assertEquals(sp.get("metadata[vote_price]"), "200");
+      assertEquals(sp.get("metadata[pricing_version]"), "flat_2usd_15pct_v1");
+      assertEquals(sp.get("metadata[service_fee_percent]"), "15");
+      const row = rec.paymentInserts[0];
+      assertEquals(row.vote_price, 200);
+      assertEquals(row.vote_quantity, q);
+      assertEquals(row.amount, total);
+      assertEquals(row.subtotal_amount, q * 200);
+      assertEquals(row.service_fee_amount, Math.round((q * 200 * 15) / 100));
+      assertEquals(row.tax_amount, 0);
+      assertEquals(row.status, "pending");
+      assertEquals((row.subtotal_amount as number) + (row.service_fee_amount as number) + (row.tax_amount as number), row.amount);
+    }
   }
 }});
 
-Deno.test({ name: "individual quantities 1,10,19,20,21,50,100,1000", ...OPTS, fn: async () => {
-  const expected: Record<number, number> = { 1: 180, 10: 1800, 19: 3420, 20: 3000, 21: 3150, 50: 7500, 100: 15000, 1000: 150000 };
-  for (const [qStr, total] of Object.entries(expected)) {
-    setup({ fee: true, type: "individual" });
-    const res = await call({ candidate_id: CANDIDATE_ID, vote_quantity: Number(qStr), pricing_version: "tiered_v2", client_total_cents: total });
-    assertEquals(res.status, 200, `q=${qStr}`);
-    assertEquals(stripeTotalCents(rec.stripeBodies[0]), total);
-    assertEquals(rec.paymentInserts[0].amount, total);
-  }
-}});
-
-Deno.test({ name: "client-supplied price/fee fields are ignored (server prices from DB candidate + quantity)", ...OPTS, fn: async () => {
-  setup({ fee: true, type: "couple" });
+Deno.test({ name: "client-supplied price/fee fields are ignored (server prices from flat $2.00 + 15%)", ...OPTS, fn: async () => {
+  setup({ type: "individual" });
   const res = await call({
-    candidate_id: CANDIDATE_ID, vote_quantity: 19, pricing_version: "tiered_v2",
-    service_fee_cents: 0, service_fee_per_vote_cents: 1, unit_amount: 1, amount: 1, vote_price: 1, candidate_type: "individual",
+    candidate_id: CANDIDATE_ID, vote_quantity: 10, pricing_version: "flat_2usd_15pct_v1",
+    service_fee_cents: 0, service_fee_per_vote_cents: 1, unit_amount: 1, amount: 1, vote_price: 100, candidate_type: "individual",
   });
   assertEquals(res.status, 200);
-  assertEquals(stripeTotalCents(rec.stripeBodies[0]), 5320);
-  assertEquals(rec.paymentInserts[0].amount, 5320);
+  assertEquals(stripeTotalCents(rec.stripeBodies[0]), 2300);
+  assertEquals(rec.paymentInserts[0].amount, 2300);
 }});
 
 Deno.test({ name: "mismatching client_total_cents => 409, nothing created in Stripe or DB", ...OPTS, fn: async () => {
-  for (const bad of [100, 5320 + 1, 5000 - 1, 1.5, "5000"]) {
-    setup({ fee: true, type: "couple" });
-    const res = await call({ candidate_id: CANDIDATE_ID, vote_quantity: 20, pricing_version: "tiered_v2", client_total_cents: bad });
+  for (const bad of [100, 1800, 2000, 2301, 2299, 1.5, "2300"]) {
+    setup({ type: "couple" });
+    const res = await call({ candidate_id: CANDIDATE_ID, vote_quantity: 10, pricing_version: "flat_2usd_15pct_v1", client_total_cents: bad });
     assertEquals(res.status, 409, String(bad));
     await res.body?.cancel();
     assertEquals(rec.stripeBodies.length, 0);
@@ -163,35 +163,20 @@ Deno.test({ name: "mismatching client_total_cents => 409, nothing created in Str
   }
 }});
 
-Deno.test({ name: "stale/legacy pricing_version while fees enabled => 409 (fee cannot be bypassed)", ...OPTS, fn: async () => {
-  for (const v of ["legacy_base_v0", "all_in_v1", undefined, "bogus"]) {
-    setup({ fee: true, type: "couple" });
-    const res = await call({ candidate_id: CANDIDATE_ID, vote_quantity: 20, pricing_version: v, client_total_cents: 4000 });
+Deno.test({ name: "stale/legacy pricing_version => 409 (old pricing cannot be used)", ...OPTS, fn: async () => {
+  for (const v of ["tiered_v2", "legacy_base_v0", "all_in_v1", "dynamic_v3", undefined, "bogus"]) {
+    setup({ type: "couple" });
+    const res = await call({ candidate_id: CANDIDATE_ID, vote_quantity: 10, pricing_version: v, client_total_cents: 2300 });
     assertEquals(res.status, 409, String(v));
     await res.body?.cancel();
     assertEquals(rec.stripeBodies.length, 0);
   }
 }});
 
-Deno.test({ name: "fees disabled server-side => legacy base price only (existing behaviour preserved)", ...OPTS, fn: async () => {
-  setup({ fee: false, type: "couple" });
-  const res = await call({ candidate_id: CANDIDATE_ID, vote_quantity: 20, pricing_version: "legacy_base_v0", client_total_cents: 4000 });
-  assertEquals(res.status, 200);
-  assertEquals(stripeTotalCents(rec.stripeBodies[0]), 4000);
-  assertEquals(rec.stripeBodies[0].get("metadata[pricing_version]"), "legacy_base_v0");
-  assertEquals(rec.paymentInserts[0].service_fee_amount, 0);
-  assertEquals(rec.paymentInserts[0].amount, 4000);
-  // a fee-inclusive client total is rejected while server fees are off
-  setup({ fee: false, type: "couple" });
-  const res2 = await call({ candidate_id: CANDIDATE_ID, vote_quantity: 20, pricing_version: "tiered_v2", client_total_cents: 5000 });
-  assertEquals(res2.status, 409);
-  await res2.body?.cancel();
-}});
-
 Deno.test({ name: "invalid quantities rejected with 400", ...OPTS, fn: async () => {
   for (const bad of [0, -5, 1.5, 1001, 100000, "20", null, NaN]) {
-    setup({ fee: true });
-    const res = await call({ candidate_id: CANDIDATE_ID, vote_quantity: bad, pricing_version: "tiered_v2" });
+    setup();
+    const res = await call({ candidate_id: CANDIDATE_ID, vote_quantity: bad, pricing_version: "flat_2usd_15pct_v1" });
     assertEquals(res.status, 400, String(bad));
     await res.body?.cancel();
     assertEquals(rec.stripeBodies.length, 0);
@@ -199,28 +184,28 @@ Deno.test({ name: "invalid quantities rejected with 400", ...OPTS, fn: async () 
 }});
 
 Deno.test({ name: "voting deadline, inactive candidate, origin and uuid rules preserved", ...OPTS, fn: async () => {
-  setup({ fee: true });
+  setup();
   scheduleEndTime = new Date(Date.now() - 1000).toISOString();
-  let res = await call({ candidate_id: CANDIDATE_ID, vote_quantity: 20, pricing_version: "tiered_v2" });
+  let res = await call({ candidate_id: CANDIDATE_ID, vote_quantity: 10, pricing_version: "flat_2usd_15pct_v1" });
   assertEquals(res.status, 403);
   assert((await res.json()).error.includes("closed"));
   assertEquals(rec.stripeBodies.length, 0);
 
-  setup({ fee: true });
+  setup();
   candidateStatus = "paused";
-  res = await call({ candidate_id: CANDIDATE_ID, vote_quantity: 20, pricing_version: "tiered_v2" });
+  res = await call({ candidate_id: CANDIDATE_ID, vote_quantity: 10, pricing_version: "flat_2usd_15pct_v1" });
   assertEquals(res.status, 400);
   await res.body?.cancel();
 
-  setup({ fee: true });
-  res = await call({ candidate_id: CANDIDATE_ID, vote_quantity: 20, pricing_version: "tiered_v2" }, "https://evil.example.com");
+  setup();
+  res = await call({ candidate_id: CANDIDATE_ID, vote_quantity: 10, pricing_version: "flat_2usd_15pct_v1" }, "https://evil.example.com");
   assertEquals(res.status, 403);
   await res.body?.cancel();
-  res = await call({ candidate_id: CANDIDATE_ID, vote_quantity: 20, pricing_version: "tiered_v2" }, null);
+  res = await call({ candidate_id: CANDIDATE_ID, vote_quantity: 10, pricing_version: "flat_2usd_15pct_v1" }, null);
   assertEquals(res.status, 403);
   await res.body?.cancel();
 
-  res = await call({ candidate_id: "not-a-uuid", vote_quantity: 20, pricing_version: "tiered_v2" });
+  res = await call({ candidate_id: "not-a-uuid", vote_quantity: 10, pricing_version: "flat_2usd_15pct_v1" });
   assertEquals(res.status, 400);
   await res.body?.cancel();
   assertEquals(rec.stripeBodies.length, 0);
