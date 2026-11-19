@@ -1,0 +1,102 @@
+name: Payment Reconciliation Scheduler
+
+on:
+  schedule:
+    # Run every 10 minutes to recover delayed/pending Stripe payments
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: reconcile-pending-payments
+  cancel-in-progress: false
+
+jobs:
+  reconcile-payments:
+    name: Reconcile Pending & Eligible Failed Payments
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Invoke Supabase reconcile-pending-payments
+        env:
+          RECONCILIATION_CRON_SECRET: ${{ secrets.RECONCILIATION_CRON_SECRET }}
+          RECONCILE_ENDPOINT: https://wbecjmayzdzlcpajwzey.supabase.co/functions/v1/reconcile-pending-payments
+        run: |
+          set -euo pipefail
+
+          if [ -z "${RECONCILIATION_CRON_SECRET}" ]; then
+            echo "::error::RECONCILIATION_CRON_SECRET repository secret is not configured."
+            exit 1
+          fi
+
+          if [ "${#RECONCILIATION_CRON_SECRET}" -lt 32 ]; then
+            echo "::error::RECONCILIATION_CRON_SECRET must be at least 32 characters."
+            exit 1
+          fi
+
+          RESP_FILE="$(mktemp)"
+          trap 'rm -f "${RESP_FILE}"' EXIT
+
+          HTTP_CODE="$(curl -sS -o "${RESP_FILE}" -w "%{http_code}" \
+            --connect-timeout 15 \
+            --max-time 90 \
+            --retry 1 \
+            --retry-delay 5 \
+            -X POST "${RECONCILE_ENDPOINT}" \
+            -H "Content-Type: application/json" \
+            -H "x-reconciliation-secret: ${RECONCILIATION_CRON_SECRET}" \
+            -d '{}')"
+
+          echo "HTTP status: ${HTTP_CODE}"
+
+          if [ "${HTTP_CODE}" -ne 200 ]; then
+            echo "::error::reconcile-pending-payments returned HTTP ${HTTP_CODE}."
+            python3 - "${RESP_FILE}" <<'PY'
+          import json, sys
+          try:
+              with open(sys.argv[1], "r", encoding="utf-8") as f:
+                  data = json.load(f)
+              print("Error:", data.get("error", "Unknown error"))
+          except Exception:
+              print("Response was not valid JSON.")
+          PY
+            exit 1
+          fi
+
+          python3 - "${RESP_FILE}" <<'PY'
+          import json, sys
+
+          with open(sys.argv[1], "r", encoding="utf-8") as f:
+              data = json.load(f)
+
+          if data.get("success") is not True:
+              print("::error::Reconciliation response did not report success=true.")
+              sys.exit(1)
+
+          summary = data.get("summary") or {}
+          fields = [
+              "run_id",
+              "trigger_source",
+              "scanned_count",
+              "recovered_count",
+              "already_credited_count",
+              "skipped_unpaid_count",
+              "transient_error_count",
+              "flagged_manual_review_count",
+          ]
+          for k in fields:
+              print(f"{k}: {summary.get(k)}")
+
+          transient = int(summary.get("transient_error_count") or 0)
+          manual_review = int(summary.get("flagged_manual_review_count") or 0)
+
+          if transient > 0:
+              print(f"::error::{transient} payment(s) encountered transient reconciliation errors.")
+              sys.exit(1)
+
+          if manual_review > 0:
+              print(f"::error::{manual_review} payment(s) flagged for manual review.")
+              sys.exit(1)
+          PY
