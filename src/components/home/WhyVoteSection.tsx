@@ -29,7 +29,7 @@ const benefits = [
     icon: Lock,
     title: "No Vote Limit",
     description:
-      "Support your candidate as much as you want. $1/vote for individuals, $2/vote for couples. Cast as many as you like.",
+      "Support your candidate as much as you want. $2.00/vote (+15% service fee) for both individuals and couples. Cast as many as you like.",
     color: "#7A0C2E",
     bg: "#FFF3F5",
   },

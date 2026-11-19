@@ -82,9 +82,13 @@ export function AdminAnalyticsPage() {
     .filter((c) => c.candidate_type === "couple")
     .reduce((sum, c) => sum + (c.paid_votes ?? c.total_votes ?? 0), 0);
 
-  // Base Vote Revenue is strictly from PAID VOTES ($1 individual, $2 couple)
-  const individualRevenueCents = individualPaidVotes * 100;
-  const coupleRevenueCents = couplePaidVotes * 200;
+  // Base Vote Revenue is summed from verified paid payments (preserves historical $1/vote and current $2/vote)
+  const individualRevenueCents = payments
+    .filter((p) => p.candidate_type !== "couple")
+    .reduce((sum, p) => sum + (p.subtotal_amount ?? p.vote_quantity * 100), 0);
+  const coupleRevenueCents = payments
+    .filter((p) => p.candidate_type === "couple")
+    .reduce((sum, p) => sum + (p.subtotal_amount ?? p.vote_quantity * 200), 0);
   const totalRevenueCents = individualRevenueCents + coupleRevenueCents;
   const totalServiceFeesCents = payments.reduce((sum, p) => {
     const sub = p.subtotal_amount ?? p.vote_quantity * (p.candidate_type === "couple" ? 200 : 100);
@@ -108,8 +112,8 @@ export function AdminAnalyticsPage() {
 
   // Type Distribution for pie chart (based on paid revenue)
   const typeDistributionData = [
-    { name: "Individual ($1/vote)", value: individualRevenueCents / 100, votes: individualPaidVotes },
-    { name: "Couple ($2/vote)", value: coupleRevenueCents / 100, votes: couplePaidVotes },
+    { name: "Individual", value: individualRevenueCents / 100, votes: individualPaidVotes },
+    { name: "Couple", value: coupleRevenueCents / 100, votes: couplePaidVotes },
   ].filter((d) => d.value > 0);
 
   // Votes over time (line chart)
@@ -186,11 +190,11 @@ export function AdminAnalyticsPage() {
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem", fontSize: "0.75rem", color: "#6B6870", borderTop: "1px solid #FDF2F4", paddingTop: "0.5rem" }}>
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>Individual ($1/vote):</span>
+                  <span>Individual Base Revenue:</span>
                   <span style={{ fontWeight: 700, color: "#7A0C2E" }}>{formatCurrency(individualRevenueCents)}</span>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>Couple ($2/vote):</span>
+                  <span>Couple Base Revenue:</span>
                   <span style={{ fontWeight: 700, color: "#E51B3E" }}>{formatCurrency(coupleRevenueCents)}</span>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between" }}>

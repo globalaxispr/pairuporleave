@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Vote, Heart, X, Trophy } from "lucide-react";
-import { IS_PLATFORM_SERVICE_FEE_ENABLED } from "@/lib/supabase";
 import { useCompetitionSchedule } from "@/hooks/useCompetitionSchedule";
 
 export function MobileStickyVote() {
@@ -91,9 +90,7 @@ export function MobileStickyVote() {
               <span style={{ fontSize: "0.8125rem", fontWeight: 800, color: "#24131A" }}>
                 {isVotingClosed
                   ? "Voting Period Concluded"
-                  : IS_PLATFORM_SERVICE_FEE_ENABLED
-                  ? "1 Vote: $1 ($1.80 w/ fee) · Couples: $2 ($2.80 w/ fee)"
-                  : "1 Vote = $1 · Couples = $2"}
+                  : "$2.00 / vote + 15% fee ($2.30 for 1 vote)"}
               </span>
             </div>
             <span style={{ fontSize: "0.6875rem", color: "#6B6870" }}>

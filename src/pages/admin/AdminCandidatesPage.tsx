@@ -109,7 +109,7 @@ function CandidateForm({
             }}
           >
             <User size={16} />
-            Individual ($1/vote)
+            Individual ($2/vote)
           </button>
           <button
             type="button"
@@ -644,7 +644,7 @@ export function AdminCandidatesPage() {
                         ) : (
                           <span style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem", background: "#F3F4F6", color: "#374151", border: "1px solid #E5E7EB", padding: "0.25rem 0.625rem", borderRadius: 99, fontSize: "0.75rem", fontWeight: 700 }}>
                             <User size={12} />
-                            Individual ($1/vote)
+                            Individual ($2/vote)
                           </span>
                         )}
                       </td>

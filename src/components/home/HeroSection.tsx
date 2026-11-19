@@ -199,12 +199,12 @@ export function HeroSection() {
                   <span>Stripe Secure Payments</span>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}>
-                  <span style={{ fontWeight: 800, color: "#7A0C2E" }}>$1</span>
+                  <span style={{ fontWeight: 800, color: "#7A0C2E" }}>$2.00</span>
                   <span>/ vote individual</span>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}>
-                  <span style={{ fontWeight: 800, color: "#7A0C2E" }}>$2</span>
-                  <span>/ vote couple</span>
+                  <span style={{ fontWeight: 800, color: "#7A0C2E" }}>$2.00</span>
+                  <span>/ vote couple (+15% fee)</span>
                 </div>
               </div>
             </div>

@@ -279,9 +279,7 @@ export function CandidateProfilePage() {
                   {formatNumber(getCandidateScore(candidate))}
                 </div>
                 <div style={{ fontSize: "0.8125rem", color: "#7A0C2E", fontWeight: 700, marginTop: "0.25rem" }}>
-                  {IS_PLATFORM_SERVICE_FEE_ENABLED
-                    ? `$${isCouple ? "2.00" : "1.00"}/vote base (${getSingleVoteAllInPriceFormatted(candidate.candidate_type)} total for 1 vote w/ fee) · ${isCouple ? "Couple Entry" : "Individual Entry"}`
-                    : `$${isCouple ? "2.00" : "1.00"} per vote · ${isCouple ? "Couple Entry" : "Individual Entry"}`}
+                  {`$2.00/vote + 15% service fee (${getSingleVoteAllInPriceFormatted(candidate.candidate_type)} total for 1 vote) · ${isCouple ? "Couple Entry" : "Individual Entry"}`}
                 </div>
               </div>
 

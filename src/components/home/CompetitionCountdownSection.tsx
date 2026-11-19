@@ -276,7 +276,7 @@ export function CompetitionCountdownSection() {
               ? schedule.description ||
                 "Every vote changes the live leaderboard. Cast your votes for your favorite couples and individual candidates before the clock reaches zero!"
               : isUpcoming
-              ? `Get ready! Voting officially begins on ${formatDateTime(schedule.start_time)}. Support starts at $1/vote.`
+              ? `Get ready! Voting officially begins on ${formatDateTime(schedule.start_time)}. Support is $2.00/vote (+15% service fee).`
               : `The competition deadline of ${formatDateTime(schedule.end_time)} has passed. Final results and standings are locked.`}
           </p>
         </div>

@@ -826,7 +826,7 @@ export function AdminSchedulePage() {
                 <ul style={{ margin: 0, paddingLeft: "1.1rem", fontSize: "0.75rem" }}>
                   <li>Stripe Checkout rejects new transactions before the start date or after the deadline.</li>
                   <li>Payments initiated before the deadline are honored if confirmed within grace window.</li>
-                  <li>Vote pricing remains strictly preserved: $1/individual, $2/couple.</li>
+                  <li>Vote pricing: $2.00/vote (+15% service fee) for both individual and couple entries.</li>
                   <li>Changes sync via Supabase Realtime across all visitor browsers instantly.</li>
                 </ul>
               </div>

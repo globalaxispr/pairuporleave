@@ -1,5 +1,4 @@
 import { Users, Vote, Trophy } from "lucide-react";
-import { IS_PLATFORM_SERVICE_FEE_ENABLED } from "@/lib/supabase";
 
 const steps = [
   {
@@ -14,9 +13,8 @@ const steps = [
     num: "02",
     icon: Vote,
     title: "Vote",
-    description: IS_PLATFORM_SERVICE_FEE_ENABLED
-      ? "Choose how many votes you want to cast. Individual votes are $1.00 base ($1.80 total for 1 vote w/ platform service fee), and couple votes are $2.00 base ($2.80 total for 1 vote w/ platform service fee)."
-      : "Choose how many votes you want to cast. Individual votes are $1 each, and couple votes are $2 each.",
+    description:
+      "Choose how many votes you want to cast. Individual and couple votes are both $2.00 per vote plus a 15% service fee ($2.30 total for 1 vote).",
     color: "#E51B3E",
     bg: "#FFF3F5",
   },

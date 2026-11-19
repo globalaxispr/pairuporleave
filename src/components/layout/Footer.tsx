@@ -143,7 +143,7 @@ export function Footer() {
             <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
               {[
                 { label: "How Voting Works", to: "/how-it-works" },
-                { label: "Individual Voting ($1/vote)", to: "/how-it-works" },
+                { label: "Individual Voting ($2/vote)", to: "/how-it-works" },
                 { label: "Couple Voting ($2/vote)", to: "/how-it-works" },
                 { label: "Voting Policy (All Votes Final)", to: "/voting-policy" },
                 { label: "FAQ", to: "/how-it-works#faq" },
